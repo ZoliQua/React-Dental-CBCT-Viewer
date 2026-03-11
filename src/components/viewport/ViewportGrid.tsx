@@ -1,16 +1,20 @@
 import { useViewer } from '@/context/ViewerContext';
 import { Viewport2D } from './Viewport2D';
 import { ViewportMPR } from './ViewportMPR';
+import { Viewport3D } from './Viewport3D';
 
 export function ViewportGrid() {
   const { state } = useViewer();
 
-  // 1x1 mode: show MPR single view if orientation is selected, otherwise stack
+  // 1x1 mode: show selected view mode
   if (state.layoutMode === '1x1') {
-    if (state.mprOrientation && state.volumeId) {
-      return <ViewportMPR orientation={state.mprOrientation} volumeId={state.volumeId} />;
+    if (!state.volumeId) {
+      return <Viewport2D />;
     }
-    return <Viewport2D />;
+    if (state.viewMode === '3D') {
+      return <Viewport3D volumeId={state.volumeId} />;
+    }
+    return <ViewportMPR orientation={state.viewMode} volumeId={state.volumeId} />;
   }
 
   // Multi-viewport layouts need volume
@@ -24,7 +28,7 @@ export function ViewportGrid() {
         <ViewportMPR orientation="AXIAL" volumeId={state.volumeId} />
         <ViewportMPR orientation="SAGITTAL" volumeId={state.volumeId} />
         <ViewportMPR orientation="CORONAL" volumeId={state.volumeId} />
-        <Viewport2D />
+        <Viewport3D volumeId={state.volumeId} />
       </div>
     );
   }
@@ -44,7 +48,7 @@ export function ViewportGrid() {
             <ViewportMPR orientation="CORONAL" volumeId={state.volumeId} />
           </div>
           <div className="flex-1">
-            <Viewport2D />
+            <Viewport3D volumeId={state.volumeId} />
           </div>
         </div>
       </div>

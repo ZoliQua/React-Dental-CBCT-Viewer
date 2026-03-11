@@ -31,8 +31,8 @@ export function ViewerShell() {
     };
   }, [state.isInitialized]);
 
-  // Build volume when switching to MPR layout or selecting an MPR orientation in 1x1
-  const needsVolume = state.layoutMode !== '1x1' || state.mprOrientation !== null;
+  // Build volume for MPR/3D views (always needed since default viewMode is AXIAL)
+  const needsVolume = true;
   useEffect(() => {
     if (
       !needsVolume ||

@@ -50,8 +50,19 @@ export type LayoutMode = '1x1' | '2x2' | '1+3';
 
 export type MPROrientation = 'AXIAL' | 'SAGITTAL' | 'CORONAL';
 
+export type ViewMode = MPROrientation | '3D';
+
 export const ORIENTATION_LABELS: Record<MPROrientation, string> = {
   AXIAL: 'Axiális',
   SAGITTAL: 'Szagittális',
   CORONAL: 'Koronális',
 };
+
+export type Volume3DPreset = 'CT-Bone' | 'CT-Bones' | 'CT-Coronary-Arteries-3' | 'CT-MIP';
+
+export const VOLUME_3D_PRESETS: { id: Volume3DPreset; label: string }[] = [
+  { id: 'CT-Bone', label: 'Csont' },
+  { id: 'CT-Bones', label: 'Csont (kontrasztos)' },
+  { id: 'CT-Coronary-Arteries-3', label: 'Fogászat' },
+  { id: 'CT-MIP', label: 'MIP' },
+];

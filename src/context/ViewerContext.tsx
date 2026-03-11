@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, type ReactNode, type Dispatch } from 'react';
-import type { DicomStudyInfo, ViewportTool, LayoutMode, MPROrientation } from '@/types/dicom';
+import type { DicomStudyInfo, ViewportTool, LayoutMode, ViewMode } from '@/types/dicom';
 
 interface ViewerState {
   isInitialized: boolean;
@@ -10,7 +10,7 @@ interface ViewerState {
   activeTool: ViewportTool;
   layoutMode: LayoutMode;
   volumeId: string | null;
-  mprOrientation: MPROrientation | null;
+  viewMode: ViewMode;
   currentSliceIndex: number;
   totalSlices: number;
   error: string | null;
@@ -25,7 +25,7 @@ type ViewerAction =
   | { type: 'SET_ACTIVE_TOOL'; payload: ViewportTool }
   | { type: 'SET_LAYOUT_MODE'; payload: LayoutMode }
   | { type: 'SET_VOLUME_ID'; payload: string }
-  | { type: 'SET_MPR_ORIENTATION'; payload: MPROrientation | null }
+  | { type: 'SET_VIEW_MODE'; payload: ViewMode }
   | { type: 'SET_SLICE_INFO'; payload: { index: number; total: number } }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'RESET' };
@@ -39,7 +39,7 @@ const initialState: ViewerState = {
   activeTool: 'windowLevel',
   layoutMode: '1x1',
   volumeId: null,
-  mprOrientation: 'AXIAL' as MPROrientation,
+  viewMode: 'AXIAL' as ViewMode,
   currentSliceIndex: 0,
   totalSlices: 0,
   error: null,
@@ -66,11 +66,11 @@ function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
     case 'SET_ACTIVE_TOOL':
       return { ...state, activeTool: action.payload };
     case 'SET_LAYOUT_MODE':
-      return { ...state, layoutMode: action.payload, mprOrientation: action.payload === '1x1' ? 'AXIAL' : null };
+      return { ...state, layoutMode: action.payload, viewMode: action.payload === '1x1' ? 'AXIAL' : 'AXIAL' };
     case 'SET_VOLUME_ID':
       return { ...state, volumeId: action.payload };
-    case 'SET_MPR_ORIENTATION':
-      return { ...state, mprOrientation: action.payload };
+    case 'SET_VIEW_MODE':
+      return { ...state, viewMode: action.payload };
     case 'SET_SLICE_INFO':
       return { ...state, currentSliceIndex: action.payload.index, totalSlices: action.payload.total };
     case 'SET_ERROR':

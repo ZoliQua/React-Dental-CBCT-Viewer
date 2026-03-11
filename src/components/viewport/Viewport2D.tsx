@@ -132,9 +132,9 @@ export function Viewport2D() {
         onContextMenu={(e) => e.preventDefault()}
       />
       <ViewportOverlay />
-      {state.mprOrientation && (
+      {state.viewMode !== '3D' && (
         <div className="absolute top-1 left-1/2 -translate-x-1/2 text-yellow-400 text-xs font-mono font-bold pointer-events-none select-none [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
-          {ORIENTATION_LABELS[state.mprOrientation]}
+          {ORIENTATION_LABELS[state.viewMode]}
         </div>
       )}
       {state.totalSlices > 1 && (

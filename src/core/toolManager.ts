@@ -5,6 +5,7 @@ import {
   PanTool,
   ZoomTool,
   StackScrollTool,
+  TrackballRotateTool,
   LengthTool,
   AngleTool,
   EllipticalROITool,
@@ -14,8 +15,15 @@ import {
   CrosshairsTool,
   Enums as csToolsEnums,
 } from '@cornerstonejs/tools';
-import { TOOL_GROUP_ID } from './constants';
+import { TOOL_GROUP_ID, TOOL_GROUP_3D_ID, VP_AXIAL, VP_SAGITTAL, VP_CORONAL } from './constants';
 import type { ViewportTool } from '@/types/dicom';
+
+// Reference line colors per orientation (the line representing that plane)
+const CROSSHAIR_COLORS: Record<string, string> = {
+  [VP_AXIAL]: 'rgb(255, 255, 50)',    // Yellow — axial plane
+  [VP_SAGITTAL]: 'rgb(255, 100, 100)', // Red — sagittal plane
+  [VP_CORONAL]: 'rgb(100, 220, 100)',  // Green — coronal plane
+};
 
 let toolGroupCreated = false;
 
@@ -27,6 +35,7 @@ export function setupTools(): void {
   addTool(PanTool);
   addTool(ZoomTool);
   addTool(StackScrollTool);
+  addTool(TrackballRotateTool);
   addTool(LengthTool);
   addTool(AngleTool);
   addTool(EllipticalROITool);
@@ -35,10 +44,10 @@ export function setupTools(): void {
   addTool(ProbeTool);
   addTool(CrosshairsTool);
 
+  // --- 2D / MPR tool group ---
   const toolGroup = ToolGroupManager.createToolGroup(TOOL_GROUP_ID);
   if (!toolGroup) return;
 
-  // Add all tools to the group
   toolGroup.addTool(WindowLevelTool.toolName);
   toolGroup.addTool(PanTool.toolName);
   toolGroup.addTool(ZoomTool.toolName);
@@ -49,15 +58,41 @@ export function setupTools(): void {
   toolGroup.addTool(BidirectionalTool.toolName);
   toolGroup.addTool(ArrowAnnotateTool.toolName);
   toolGroup.addTool(ProbeTool.toolName);
-  toolGroup.addTool(CrosshairsTool.toolName);
+  toolGroup.addTool(CrosshairsTool.toolName, {
+    getReferenceLineColor: (_vpId: string, refVpId: string) =>
+      CROSSHAIR_COLORS[refVpId] || 'rgb(200, 200, 200)',
+    getReferenceLineControllable: () => true,
+    getReferenceLineDraggableRotatable: () => true,
+    getReferenceLineSlabThicknessControlsOn: () => false,
+  });
 
-  // Mouse wheel scrolls through slices (always active)
   toolGroup.setToolActive(StackScrollTool.toolName, {
     bindings: [{ mouseButton: csToolsEnums.MouseBindings.Wheel }],
   });
 
   // Default: left click = Window/Level
   setActiveTool('windowLevel');
+
+  // --- 3D tool group ---
+  const toolGroup3D = ToolGroupManager.createToolGroup(TOOL_GROUP_3D_ID);
+  if (toolGroup3D) {
+    toolGroup3D.addTool(TrackballRotateTool.toolName);
+    toolGroup3D.addTool(PanTool.toolName);
+    toolGroup3D.addTool(ZoomTool.toolName);
+
+    // Left click = rotate
+    toolGroup3D.setToolActive(TrackballRotateTool.toolName, {
+      bindings: [{ mouseButton: csToolsEnums.MouseBindings.Primary }],
+    });
+    // Middle click = pan
+    toolGroup3D.setToolActive(PanTool.toolName, {
+      bindings: [{ mouseButton: csToolsEnums.MouseBindings.Auxiliary }],
+    });
+    // Right click = zoom
+    toolGroup3D.setToolActive(ZoomTool.toolName, {
+      bindings: [{ mouseButton: csToolsEnums.MouseBindings.Secondary }],
+    });
+  }
 
   toolGroupCreated = true;
 }
@@ -125,6 +160,13 @@ export function setActiveTool(tool: ViewportTool): void {
 
 export function addViewportToToolGroup(viewportId: string, renderingEngineId: string): void {
   const toolGroup = ToolGroupManager.getToolGroup(TOOL_GROUP_ID);
+  if (toolGroup) {
+    toolGroup.addViewport(viewportId, renderingEngineId);
+  }
+}
+
+export function addViewportTo3DToolGroup(viewportId: string, renderingEngineId: string): void {
+  const toolGroup = ToolGroupManager.getToolGroup(TOOL_GROUP_3D_ID);
   if (toolGroup) {
     toolGroup.addViewport(viewportId, renderingEngineId);
   }

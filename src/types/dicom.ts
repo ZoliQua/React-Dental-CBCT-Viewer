@@ -41,12 +41,17 @@ export type ViewportTool =
   | 'length'
   | 'angle'
   | 'ellipticalRoi'
+  | 'circleRoi'
+  | 'rectangleRoi'
+  | 'freehandRoi'
   | 'bidirectional'
   | 'arrowAnnotate'
   | 'probe'
   | 'crosshairs';
 
-export type LayoutMode = '1x1' | '2x2' | '1+3';
+export type LayoutMode = '1x1' | '2x2' | '1+3' | 'OPG' | 'OPG2+1';
+
+export type ProjectionMode = 'AVG' | 'MIP';
 
 export type MPROrientation = 'AXIAL' | 'SAGITTAL' | 'CORONAL';
 
@@ -57,6 +62,25 @@ export const ORIENTATION_LABELS: Record<MPROrientation, string> = {
   SAGITTAL: 'Szagittális',
   CORONAL: 'Koronális',
 };
+
+// ── Implant planning ──────────────────────────────────────────
+
+export interface ImplantData {
+  id: string;
+  /** World position of the implant tip (entry point into bone) in mm */
+  positionMm: [number, number]; // [horizontal offset from curve center, Z]
+  /** Diameter in mm (typical: 3.0–6.0) */
+  diameter: number;
+  /** Length in mm (typical: 6.0–16.0) */
+  length: number;
+  /** Angle in degrees from vertical (0 = straight down, positive = tilted right) */
+  angleDeg: number;
+  /** Arch curve position (0-1) where this implant belongs */
+  curvePosition: number;
+}
+
+export const IMPLANT_DIAMETERS = [3.0, 3.3, 3.5, 3.75, 4.0, 4.2, 4.5, 5.0, 5.5, 6.0];
+export const IMPLANT_LENGTHS = [6.0, 7.0, 8.0, 8.5, 9.0, 10.0, 11.0, 11.5, 12.0, 13.0, 14.0, 15.0, 16.0];
 
 export type Volume3DPreset = 'CT-Bone' | 'CT-Bones' | 'CT-Coronary-Arteries-3' | 'CT-MIP';
 

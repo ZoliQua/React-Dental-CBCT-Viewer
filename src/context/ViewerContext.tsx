@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, type ReactNode, type Dispatch } from 'react';
-import type { DicomStudyInfo, ViewportTool, LayoutMode, ViewMode } from '@/types/dicom';
+import type { DicomStudyInfo, ViewportTool, LayoutMode, ViewMode, ProjectionMode, ImplantData } from '@/types/dicom';
 
 interface ViewerState {
   isInitialized: boolean;
@@ -14,6 +14,18 @@ interface ViewerState {
   currentSliceIndex: number;
   totalSlices: number;
   error: string | null;
+  // Panoramic OPG state
+  archCurveControlPoints: [number, number][] | null;
+  panoramicSlabWidth: number;
+  panoramicProjection: ProjectionMode;
+  panoramicResolution: number; // mm per pixel along the curve
+  // Cross-section state
+  crossSectionPosition: number; // 0-1 normalized position along arch curve
+  crossSectionTiltDeg: number;  // degrees, tilt of cross-section plane
+  // Implant planning
+  implants: ImplantData[];
+  activeImplantId: string | null;
+  implantPlacementMode: boolean;
 }
 
 type ViewerAction =
@@ -28,6 +40,17 @@ type ViewerAction =
   | { type: 'SET_VIEW_MODE'; payload: ViewMode }
   | { type: 'SET_SLICE_INFO'; payload: { index: number; total: number } }
   | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_ARCH_CURVE'; payload: [number, number][] }
+  | { type: 'SET_PANORAMIC_SLAB'; payload: number }
+  | { type: 'SET_PANORAMIC_PROJECTION'; payload: ProjectionMode }
+  | { type: 'SET_PANORAMIC_RESOLUTION'; payload: number }
+  | { type: 'SET_CROSS_SECTION_POSITION'; payload: number }
+  | { type: 'SET_CROSS_SECTION_TILT'; payload: number }
+  | { type: 'ADD_IMPLANT'; payload: ImplantData }
+  | { type: 'UPDATE_IMPLANT'; payload: ImplantData }
+  | { type: 'REMOVE_IMPLANT'; payload: string }
+  | { type: 'SET_ACTIVE_IMPLANT'; payload: string | null }
+  | { type: 'SET_IMPLANT_PLACEMENT_MODE'; payload: boolean }
   | { type: 'RESET' };
 
 const initialState: ViewerState = {
@@ -43,6 +66,15 @@ const initialState: ViewerState = {
   currentSliceIndex: 0,
   totalSlices: 0,
   error: null,
+  archCurveControlPoints: null,
+  panoramicSlabWidth: 20,
+  panoramicProjection: 'AVG' as ProjectionMode,
+  panoramicResolution: 0.3,
+  crossSectionPosition: 0.5,
+  crossSectionTiltDeg: 0,
+  implants: [],
+  activeImplantId: null,
+  implantPlacementMode: false,
 };
 
 function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
@@ -66,7 +98,7 @@ function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
     case 'SET_ACTIVE_TOOL':
       return { ...state, activeTool: action.payload };
     case 'SET_LAYOUT_MODE':
-      return { ...state, layoutMode: action.payload, viewMode: action.payload === '1x1' ? 'AXIAL' : 'AXIAL' };
+      return { ...state, layoutMode: action.payload, viewMode: 'AXIAL' };
     case 'SET_VOLUME_ID':
       return { ...state, volumeId: action.payload };
     case 'SET_VIEW_MODE':
@@ -75,6 +107,28 @@ function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
       return { ...state, currentSliceIndex: action.payload.index, totalSlices: action.payload.total };
     case 'SET_ERROR':
       return { ...state, error: action.payload, isLoading: false, loadProgress: null };
+    case 'SET_ARCH_CURVE':
+      return { ...state, archCurveControlPoints: action.payload };
+    case 'SET_PANORAMIC_SLAB':
+      return { ...state, panoramicSlabWidth: action.payload };
+    case 'SET_PANORAMIC_PROJECTION':
+      return { ...state, panoramicProjection: action.payload };
+    case 'SET_PANORAMIC_RESOLUTION':
+      return { ...state, panoramicResolution: action.payload };
+    case 'SET_CROSS_SECTION_POSITION':
+      return { ...state, crossSectionPosition: action.payload };
+    case 'SET_CROSS_SECTION_TILT':
+      return { ...state, crossSectionTiltDeg: action.payload };
+    case 'ADD_IMPLANT':
+      return { ...state, implants: [...state.implants, action.payload], activeImplantId: action.payload.id, implantPlacementMode: false };
+    case 'UPDATE_IMPLANT':
+      return { ...state, implants: state.implants.map(imp => imp.id === action.payload.id ? action.payload : imp) };
+    case 'REMOVE_IMPLANT':
+      return { ...state, implants: state.implants.filter(imp => imp.id !== action.payload), activeImplantId: state.activeImplantId === action.payload ? null : state.activeImplantId };
+    case 'SET_ACTIVE_IMPLANT':
+      return { ...state, activeImplantId: action.payload };
+    case 'SET_IMPLANT_PLACEMENT_MODE':
+      return { ...state, implantPlacementMode: action.payload };
     case 'RESET':
       return { ...initialState, isInitialized: state.isInitialized };
     default:

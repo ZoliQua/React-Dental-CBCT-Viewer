@@ -13,6 +13,9 @@ export const VP_CORONAL = 'DQ_VP_CORONAL';
 // 3D viewport
 export const VP_3D = 'DQ_VP_3D';
 
+// Panoramic viewport
+export const VP_PANORAMIC = 'DQ_VP_PANORAMIC';
+
 // Volume
 export const VOLUME_LOADER_SCHEME = 'cornerstoneStreamingImageVolume';
 export const VOLUME_ID_PREFIX = `${VOLUME_LOADER_SCHEME}:DQ_VOLUME_`;

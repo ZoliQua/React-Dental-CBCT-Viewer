@@ -9,6 +9,9 @@ import {
   LengthTool,
   AngleTool,
   EllipticalROITool,
+  CircleROITool,
+  RectangleROITool,
+  PlanarFreehandROITool,
   BidirectionalTool,
   ArrowAnnotateTool,
   ProbeTool,
@@ -39,6 +42,9 @@ export function setupTools(): void {
   addTool(LengthTool);
   addTool(AngleTool);
   addTool(EllipticalROITool);
+  addTool(CircleROITool);
+  addTool(RectangleROITool);
+  addTool(PlanarFreehandROITool);
   addTool(BidirectionalTool);
   addTool(ArrowAnnotateTool);
   addTool(ProbeTool);
@@ -55,6 +61,9 @@ export function setupTools(): void {
   toolGroup.addTool(LengthTool.toolName);
   toolGroup.addTool(AngleTool.toolName);
   toolGroup.addTool(EllipticalROITool.toolName);
+  toolGroup.addTool(CircleROITool.toolName);
+  toolGroup.addTool(RectangleROITool.toolName);
+  toolGroup.addTool(PlanarFreehandROITool.toolName);
   toolGroup.addTool(BidirectionalTool.toolName);
   toolGroup.addTool(ArrowAnnotateTool.toolName);
   toolGroup.addTool(ProbeTool.toolName);
@@ -105,6 +114,9 @@ const TOOL_NAME_MAP: Record<ViewportTool, string> = {
   length: LengthTool.toolName,
   angle: AngleTool.toolName,
   ellipticalRoi: EllipticalROITool.toolName,
+  circleRoi: CircleROITool.toolName,
+  rectangleRoi: RectangleROITool.toolName,
+  freehandRoi: PlanarFreehandROITool.toolName,
   bidirectional: BidirectionalTool.toolName,
   arrowAnnotate: ArrowAnnotateTool.toolName,
   probe: ProbeTool.toolName,

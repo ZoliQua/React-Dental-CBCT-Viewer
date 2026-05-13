@@ -3,3 +3,7 @@ dist
 .DS_Store
 *.local
 public/sample-data/
+*.tsbuildinfo
+
+# Local DICOM test data (patient data - never commit)
+dicom_test/

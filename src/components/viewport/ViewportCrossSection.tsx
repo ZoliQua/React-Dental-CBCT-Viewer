@@ -148,16 +148,21 @@ export function ViewportCrossSection({ volumeId }: ViewportCrossSectionProps) {
 
   // ── Z line sync ─────────────────────────────────────────────
 
+  // When tilted, image rows run along the leaned slice axis: row v maps to
+  // world z = zMid + v·cos(tilt), so the z ↔ row conversion needs the cos factor
   const zToContainerY = useCallback((z: number): number | null => {
     const r = resultRef.current;
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!r || !canvas || !container) return null;
-    const normY = (r.zMax - z) / (r.zMax - r.zMin);
+    const zMid = (r.zMin + r.zMax) / 2;
+    const cosT = Math.cos((state.crossSectionTiltDeg * Math.PI) / 180);
+    const v = (z - zMid) / cosT;
+    const normY = (r.zMax - zMid - v) / (r.zMax - r.zMin);
     if (normY < 0 || normY > 1) return null;
     const cr = getContentRect(container, canvas);
     return cr.top + normY * cr.height;
-  }, []);
+  }, [state.crossSectionTiltDeg]);
 
   const containerYToZ = useCallback((clientY: number): number | null => {
     const r = resultRef.current;
@@ -168,8 +173,11 @@ export function ViewportCrossSection({ volumeId }: ViewportCrossSectionProps) {
     const localY = clientY - rect.top;
     const cr = getContentRect(container, canvas);
     const normY = Math.max(0, Math.min(1, (localY - cr.top) / cr.height));
-    return r.zMax - normY * (r.zMax - r.zMin);
-  }, []);
+    const zMid = (r.zMin + r.zMax) / 2;
+    const cosT = Math.cos((state.crossSectionTiltDeg * Math.PI) / 180);
+    const v = (r.zMax - zMid) - normY * (r.zMax - r.zMin);
+    return zMid + v * cosT;
+  }, [state.crossSectionTiltDeg]);
 
   const setAxialSliceZ = useCallback((z: number) => {
     const engine = getRenderingEngine(RENDERING_ENGINE_ID);

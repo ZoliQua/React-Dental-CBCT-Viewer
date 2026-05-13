@@ -24,6 +24,16 @@ export default defineConfig({
   },
   worker: {
     format: 'es',
+    rollupOptions: {
+      // Optional Cornerstone Tools peer dep (polymorphic segmentation) — not
+      // installed and not used by this app, but its polySeg worker imports it
+      external: ['@icr/polyseg-wasm'],
+    },
+  },
+  build: {
+    rollupOptions: {
+      external: ['@icr/polyseg-wasm'],
+    },
   },
   optimizeDeps: {
     include: [

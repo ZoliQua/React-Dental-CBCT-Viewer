@@ -1,12 +1,28 @@
 /**
  * SVG overlay on the cross-section viewport for placing and editing implants.
- * An implant is rendered as a tapered rectangle (frustum) representing the cylindrical body.
+ *
+ * Implants are true 3D objects (world position + 3D apex axis). The overlay
+ * always shows a "ghost" silhouette of each visible implant (fading with its
+ * distance from the plane, so it stays grabbable while browsing sections) and
+ * highlights the actual plane∩body intersection strip on top of it: centered
+ * on the plane the highlight covers the full body, a few mm away only the
+ * edge of the cylinder lights up.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useViewer } from '@/context/ViewerContext';
 import type { ImplantData } from '@/types/dicom';
-import { IMPLANT_DIAMETERS, IMPLANT_LENGTHS } from '@/types/dicom';
+import { ImplantShape } from './ImplantShape';
+import { crossSectionFrame } from '@/core/cprMath';
+import {
+  nearestArchFrame,
+  implantAxis,
+  implantPlaneStrip,
+  projectToPlane,
+  cross3,
+  dot3,
+  type Vec3,
+} from '@/core/implantGeometry';
 
 interface ImplantOverlayProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -17,6 +33,7 @@ interface ImplantOverlayProps {
   zMin: number;
   zMax: number;
 }
+
 
 // ── Coordinate conversion helpers ─────────────────────────────
 
@@ -33,21 +50,37 @@ function getContentRect(container: HTMLElement, canvas: HTMLCanvasElement) {
 
 export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }: ImplantOverlayProps) {
   const { state, dispatch } = useViewer();
-  const [dragState, setDragState] = useState<{ id: string; startMm: [number, number] } | null>(null);
   const implantsRef = useRef(state.implants);
   implantsRef.current = state.implants;
 
   const halfW = widthMm / 2;
   const zRange = zMax - zMin;
+  const zMid = (zMin + zMax) / 2;
 
-  // Convert mm position to SVG pixel coordinates within the content rect
-  const mmToPixel = useCallback((hMm: number, zMm: number): [number, number] | null => {
+  // World-space frame of the current cross-section plane
+  const frame = useMemo(
+    () => state.archCurveControlPoints
+      ? crossSectionFrame(
+          state.archCurveControlPoints,
+          state.crossSectionPosition,
+          state.crossSectionTiltDeg,
+          zMin, zMax,
+        )
+      : null,
+    [state.archCurveControlPoints, state.crossSectionPosition, state.crossSectionTiltDeg, zMin, zMax],
+  );
+
+  // ── Image (h, zImg) ↔ pixel mapping ─────────────────────────
+  // h: mm from plane center horizontally; zImg: vertical image coordinate in
+  // [zMin..zMax] (equals world z only at 0° tilt — it is zMid + v)
+
+  const mmToPixel = useCallback((hMm: number, zImg: number): [number, number] | null => {
     const container = containerRef.current;
     const canvas = canvasRef.current;
     if (!container || !canvas) return null;
     const cr = getContentRect(container, canvas);
     const normX = (hMm + halfW) / widthMm;
-    const normY = (zMax - zMm) / zRange;
+    const normY = (zMax - zImg) / zRange;
     return [cr.left + normX * cr.width, cr.top + normY * cr.height];
   }, [containerRef, canvasRef, halfW, widthMm, zMax, zRange]);
 
@@ -62,11 +95,10 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
     const normX = (lx - cr.left) / cr.width;
     const normY = (ly - cr.top) / cr.height;
     const hMm = normX * widthMm - halfW;
-    const zMm = zMax - normY * zRange;
-    return [hMm, zMm];
+    const zImg = zMax - normY * zRange;
+    return [hMm, zImg];
   }, [containerRef, canvasRef, halfW, widthMm, zMax, zRange]);
 
-  // mm distance to pixel distance (horizontal)
   const mmToPixelScale = useCallback((): number => {
     const container = containerRef.current;
     const canvas = canvasRef.current;
@@ -83,6 +115,18 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
     return cr.height / zRange;
   }, [containerRef, canvasRef, zRange]);
 
+  // World point from image coords, offset by w along the plane normal
+  const worldFromImage = useCallback((hMm: number, zImg: number, w = 0): Vec3 | null => {
+    if (!frame) return null;
+    const n = cross3(frame.eU, frame.eV);
+    const v = zImg - zMid;
+    return [
+      frame.origin[0] + frame.eU[0] * hMm + frame.eV[0] * v + n[0] * w,
+      frame.origin[1] + frame.eU[1] * hMm + frame.eV[1] * v + n[1] * w,
+      frame.origin[2] + frame.eU[2] * hMm + frame.eV[2] * v + n[2] * w,
+    ];
+  }, [frame, zMid]);
+
   // ── Placement click ─────────────────────────────────────────
 
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -90,26 +134,43 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
 
     const mm = pixelToMm(e.clientX, e.clientY);
     if (!mm) return;
+    const world = worldFromImage(mm[0], mm[1], 0); // place in-plane
+    if (!world) return;
 
     const implant: ImplantData = {
       id: `imp_${Date.now()}`,
-      positionMm: [mm[0], mm[1]],
+      name: `Implantátum ${state.implants.length + 1}`,
+      visible: true,
+      position: world,
       diameter: 4.0,
       length: 10.0,
-      angleDeg: 0,
-      curvePosition: state.crossSectionPosition,
+      angleBLDeg: 0,
+      angleMDDeg: 0,
     };
     dispatch({ type: 'ADD_IMPLANT', payload: implant });
-  }, [state.implantPlacementMode, state.crossSectionPosition, pixelToMm, dispatch]);
+  }, [state.implantPlacementMode, state.implants.length, pixelToMm, worldFromImage, dispatch]);
 
-  // ── Drag to move implant ────────────────────────────────────
+  // ── Drag to move (preserves out-of-plane offset) ────────────
+
+  const [dragState, setDragState] = useState<{
+    id: string;
+    grabOffsetMm: [number, number]; // cursor − entry, in image coords
+    w0: number;                     // out-of-plane offset at grab time
+  } | null>(null);
 
   const handleImplantPointerDown = useCallback((e: React.PointerEvent, imp: ImplantData) => {
     e.stopPropagation();
     e.preventDefault();
     dispatch({ type: 'SET_ACTIVE_IMPLANT', payload: imp.id });
-    setDragState({ id: imp.id, startMm: [...imp.positionMm] });
-  }, [dispatch]);
+    if (!frame) return;
+    const [u0, v0, w0] = projectToPlane(imp.position, frame);
+    const mm = pixelToMm(e.clientX, e.clientY);
+    setDragState({
+      id: imp.id,
+      grabOffsetMm: mm ? [mm[0] - u0, mm[1] - (zMid + v0)] : [0, 0],
+      w0,
+    });
+  }, [dispatch, frame, pixelToMm, zMid]);
 
   useEffect(() => {
     if (!dragState) return;
@@ -119,7 +180,13 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
       if (!mm) return;
       const imp = implantsRef.current.find(i => i.id === dragState.id);
       if (!imp) return;
-      dispatch({ type: 'UPDATE_IMPLANT', payload: { ...imp, positionMm: [mm[0], mm[1]] } });
+      const world = worldFromImage(
+        mm[0] - dragState.grabOffsetMm[0],
+        mm[1] - dragState.grabOffsetMm[1],
+        dragState.w0,
+      );
+      if (!world) return;
+      dispatch({ type: 'UPDATE_IMPLANT', payload: { ...imp, position: world } });
     };
 
     const handleUp = () => setDragState(null);
@@ -130,16 +197,50 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
       window.removeEventListener('pointermove', handleMove);
       window.removeEventListener('pointerup', handleUp);
     };
-  }, [dragState, pixelToMm, dispatch]);
+  }, [dragState, pixelToMm, worldFromImage, dispatch]);
 
-  // ── Render implants at the current cross-section position ───
+  // ── Apex rotation drag (sets the buccolingual angle) ────────
 
-  // Show implants that belong to the current curve position (within tolerance)
-  const visibleImplants = state.implants.filter(imp =>
-    Math.abs(imp.curvePosition - state.crossSectionPosition) < 0.02
-  );
+  const [rotState, setRotState] = useState<string | null>(null);
 
-  const svgInteractive = state.implantPlacementMode || visibleImplants.length > 0;
+  const handleApexPointerDown = useCallback((e: React.PointerEvent, imp: ImplantData) => {
+    e.stopPropagation();
+    e.preventDefault();
+    dispatch({ type: 'SET_ACTIVE_IMPLANT', payload: imp.id });
+    setRotState(imp.id);
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (!rotState || !frame) return;
+
+    const handleMove = (e: PointerEvent) => {
+      const imp = implantsRef.current.find(i => i.id === rotState);
+      if (!imp) return;
+      const mm = pixelToMm(e.clientX, e.clientY);
+      if (!mm) return;
+      const [u0, v0] = projectToPlane(imp.position, frame);
+      const dh = mm[0] - u0;
+      const dDown = (zMid + v0) - mm[1]; // image-down is positive
+      if (Math.abs(dh) < 0.01 && Math.abs(dDown) < 0.01) return;
+      // Full ±180° — apex can point up (upper jaw) as well as down (lower jaw)
+      const bl = Math.atan2(dh, dDown) * (180 / Math.PI);
+      dispatch({ type: 'UPDATE_IMPLANT', payload: { ...imp, angleBLDeg: Math.round(bl) } });
+    };
+
+    const handleUp = () => setRotState(null);
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    return () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+    };
+  }, [rotState, frame, pixelToMm, zMid, dispatch]);
+
+  // ── Render plane intersections ──────────────────────────────
+
+  const controlPoints = state.archCurveControlPoints;
+  const svgInteractive = state.implantPlacementMode || state.implants.length > 0;
 
   return (
     <svg
@@ -155,64 +256,94 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
       }}
       onClick={handleClick}
     >
-      {visibleImplants.map(imp => {
-        const top = mmToPixel(imp.positionMm[0], imp.positionMm[1]);
-        if (!top) return null;
+      {frame && controlPoints && state.implants.filter(i => i.visible).map(imp => {
+        const af = nearestArchFrame(controlPoints, [imp.position[0], imp.position[1]]);
+        if (!af) return null;
+        const axis = implantAxis(af, imp.angleBLDeg, imp.angleMDDeg);
+
+        const [u0, v0, w0] = projectToPlane(imp.position, frame);
+        const entryPx = mmToPixel(u0, zMid + v0);
+        if (!entryPx) return null;
 
         const scaleH = mmToPixelScale();
         const scaleV = mmToPixelScaleV();
-        const w = imp.diameter * scaleH;
-        const h = imp.length * scaleV;
-        const isActive = state.activeImplantId === imp.id;
 
-        // Implant body: rectangle from entry point downward
-        // The entry point (positionMm) is the top of the implant
-        const cx = top[0];
-        const cy = top[1];
+        // In-plane projection of the axis → silhouette lean + foreshortening
+        const au = dot3(axis, frame.eU);
+        const av = dot3(axis, frame.eV);
+        const imgAngle = Math.atan2(au, -av) * (180 / Math.PI);
+        const inPlaneLen = imp.length * Math.hypot(au, av);
+
+        // Ghost silhouette fades with the entry's distance from the plane but
+        // never disappears — the implant stays findable and grabbable
+        const ghostOpacity = Math.max(0.3, Math.min(1, 1 - (Math.abs(w0) - imp.diameter / 2) / 10));
+
+        // Actual plane∩body intersection highlight
+        const strip = implantPlaneStrip(
+          { entry: imp.position, axis, diameter: imp.diameter, length: imp.length },
+          frame,
+        );
+        const stripPoints = strip
+          ?.map(([u, v]) => mmToPixel(u, zMid + v))
+          .filter((p): p is [number, number] => p !== null)
+          .map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`)
+          .join(' ');
+
+        const isActive = state.activeImplantId === imp.id;
+        const color = isActive ? 'rgb(255, 200, 0)' : 'rgb(0, 180, 255)';
+
+        const apexPx = mmToPixel(u0 + au * imp.length, zMid + v0 + av * imp.length);
 
         return (
-          <g
-            key={imp.id}
-            transform={`rotate(${imp.angleDeg}, ${cx}, ${cy})`}
-            style={{ pointerEvents: 'auto', cursor: 'move' }}
-            onPointerDown={(e) => handleImplantPointerDown(e, imp)}
-          >
-            {/* Implant body */}
-            <rect
-              x={cx - w / 2}
-              y={cy}
-              width={w}
-              height={h}
-              rx={w / 2}
-              fill={isActive ? 'rgba(255, 200, 0, 0.35)' : 'rgba(0, 180, 255, 0.3)'}
-              stroke={isActive ? 'rgb(255, 200, 0)' : 'rgb(0, 180, 255)'}
-              strokeWidth={1.5}
+          <g key={imp.id}>
+            {/* Ghost: full silhouette, grabbable anywhere */}
+            <ImplantShape
+              x={entryPx[0]}
+              y={entryPx[1]}
+              widthPx={imp.diameter * scaleH}
+              heightPx={inPlaneLen * scaleV}
+              angleDeg={imgAngle}
+              active={isActive}
+              opacity={ghostOpacity}
+              interactive
+              onPointerDown={(e) => handleImplantPointerDown(e, imp)}
             />
-            {/* Entry point marker */}
-            <circle
-              cx={cx}
-              cy={cy}
-              r={3}
-              fill={isActive ? 'rgb(255, 200, 0)' : 'rgb(0, 180, 255)'}
-            />
-            {/* Tip marker */}
-            <circle
-              cx={cx}
-              cy={cy + h}
-              r={2}
-              fill={isActive ? 'rgb(255, 200, 0)' : 'rgb(0, 180, 255)'}
-            />
-            {/* Size label */}
-            <text
-              x={cx + w / 2 + 4}
-              y={cy + h / 2}
-              fill={isActive ? 'rgb(255, 200, 0)' : 'rgb(100, 200, 255)'}
-              fontSize={10}
-              fontFamily="monospace"
-              style={{ pointerEvents: 'none', userSelect: 'none' }}
-            >
-              ⌀{imp.diameter} × {imp.length}mm
-            </text>
+            {/* What the current plane actually cuts */}
+            {stripPoints && (
+              <polygon
+                points={stripPoints}
+                fill={isActive ? 'rgba(255, 200, 0, 0.30)' : 'rgba(0, 180, 255, 0.28)'}
+                stroke={color}
+                strokeWidth={1.5}
+                style={{ pointerEvents: 'none' }}
+              />
+            )}
+            {/* Name + size label for the active implant */}
+            {isActive && (
+              <text
+                x={entryPx[0] + (imp.diameter * scaleH) / 2 + 6}
+                y={entryPx[1]}
+                fill="rgb(255, 200, 0)"
+                fontSize={10}
+                fontFamily="monospace"
+                style={{ pointerEvents: 'none', userSelect: 'none' }}
+              >
+                {imp.name} · ⌀{imp.diameter} × {imp.length}mm
+              </text>
+            )}
+            {/* Apex rotation handle — full 360° */}
+            {isActive && apexPx && (
+              <circle
+                cx={apexPx[0]}
+                cy={apexPx[1]}
+                r={6}
+                fill={rotState === imp.id ? 'rgb(255, 220, 80)' : 'rgba(255, 200, 0, 0.85)'}
+                stroke="white"
+                strokeWidth={1.5}
+                style={{ pointerEvents: 'auto', cursor: 'grab' }}
+                onPointerDown={(e) => handleApexPointerDown(e, imp)}
+              />
+            )}
           </g>
         );
       })}
@@ -220,63 +351,3 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
   );
 }
 
-// ── Implant properties panel ──────────────────────────────────
-
-export function ImplantPropertiesPanel() {
-  const { state, dispatch } = useViewer();
-  const activeImplant = state.implants.find(i => i.id === state.activeImplantId);
-
-  if (!activeImplant) return null;
-
-  const update = (partial: Partial<ImplantData>) => {
-    dispatch({ type: 'UPDATE_IMPLANT', payload: { ...activeImplant, ...partial } });
-  };
-
-  return (
-    <div className="flex items-center gap-2">
-      <div className="w-px h-6 bg-gray-600" />
-      <span className="text-xs text-dental-400 font-bold select-none">Implantátum</span>
-
-      <label className="text-[10px] text-gray-400 select-none">⌀</label>
-      <select
-        value={activeImplant.diameter}
-        onChange={(e) => update({ diameter: Number(e.target.value) })}
-        className="bg-gray-700 text-gray-300 text-xs rounded px-1 py-0.5 border border-gray-600"
-      >
-        {IMPLANT_DIAMETERS.map(d => (
-          <option key={d} value={d}>{d} mm</option>
-        ))}
-      </select>
-
-      <label className="text-[10px] text-gray-400 select-none">H</label>
-      <select
-        value={activeImplant.length}
-        onChange={(e) => update({ length: Number(e.target.value) })}
-        className="bg-gray-700 text-gray-300 text-xs rounded px-1 py-0.5 border border-gray-600"
-      >
-        {IMPLANT_LENGTHS.map(l => (
-          <option key={l} value={l}>{l} mm</option>
-        ))}
-      </select>
-
-      <label className="text-[10px] text-gray-400 select-none">Szög</label>
-      <input
-        type="range"
-        min={-30}
-        max={30}
-        step={1}
-        value={activeImplant.angleDeg}
-        onChange={(e) => update({ angleDeg: Number(e.target.value) })}
-        className="w-16 h-1 accent-dental-400"
-      />
-      <span className="text-[10px] text-gray-300 font-mono w-6">{activeImplant.angleDeg}°</span>
-
-      <button
-        onClick={() => dispatch({ type: 'REMOVE_IMPLANT', payload: activeImplant.id })}
-        className="px-2 py-0.5 text-xs bg-gray-700 text-red-400 hover:bg-red-700 hover:text-white rounded transition-colors"
-      >
-        Törlés
-      </button>
-    </div>
-  );
-}

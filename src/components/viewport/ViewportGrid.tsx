@@ -5,6 +5,7 @@ import { Viewport3D } from './Viewport3D';
 import { ViewportPanoramic } from './ViewportPanoramic';
 import { ViewportCrossSection } from './ViewportCrossSection';
 import { ArchCurveEditor } from '@/components/panoramic/ArchCurveEditor';
+import { ImplantAxialOverlay } from '@/components/implant/ImplantAxialOverlay';
 
 export function ViewportGrid() {
   const { state } = useViewer();
@@ -65,6 +66,7 @@ export function ViewportGrid() {
         <div className="relative flex-1 h-full">
           <ViewportMPR orientation="AXIAL" volumeId={state.volumeId} />
           <ArchCurveEditor />
+          <ImplantAxialOverlay />
         </div>
         <div className="flex-1 h-full">
           <ViewportPanoramic volumeId={state.volumeId} />
@@ -82,6 +84,7 @@ export function ViewportGrid() {
           <div className="relative flex-1">
             <ViewportMPR orientation="AXIAL" volumeId={state.volumeId} />
             <ArchCurveEditor />
+            <ImplantAxialOverlay />
           </div>
           <div className="flex-1">
             <ViewportCrossSection volumeId={state.volumeId} />

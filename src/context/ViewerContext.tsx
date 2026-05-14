@@ -26,6 +26,9 @@ interface ViewerState {
   implants: ImplantData[];
   activeImplantId: string | null;
   implantPlacementMode: boolean;
+  // Layers panel
+  layersPanelOpen: boolean;
+  measurementsVisible: boolean;
 }
 
 type ViewerAction =
@@ -51,6 +54,8 @@ type ViewerAction =
   | { type: 'REMOVE_IMPLANT'; payload: string }
   | { type: 'SET_ACTIVE_IMPLANT'; payload: string | null }
   | { type: 'SET_IMPLANT_PLACEMENT_MODE'; payload: boolean }
+  | { type: 'SET_LAYERS_PANEL_OPEN'; payload: boolean }
+  | { type: 'SET_MEASUREMENTS_VISIBLE'; payload: boolean }
   | { type: 'RESET' };
 
 const initialState: ViewerState = {
@@ -75,6 +80,8 @@ const initialState: ViewerState = {
   implants: [],
   activeImplantId: null,
   implantPlacementMode: false,
+  layersPanelOpen: false,
+  measurementsVisible: true,
 };
 
 function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
@@ -129,6 +136,10 @@ function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
       return { ...state, activeImplantId: action.payload };
     case 'SET_IMPLANT_PLACEMENT_MODE':
       return { ...state, implantPlacementMode: action.payload };
+    case 'SET_LAYERS_PANEL_OPEN':
+      return { ...state, layersPanelOpen: action.payload };
+    case 'SET_MEASUREMENTS_VISIBLE':
+      return { ...state, measurementsVisible: action.payload };
     case 'RESET':
       return { ...initialState, isInitialized: state.isInitialized };
     default:

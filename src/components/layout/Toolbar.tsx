@@ -1,7 +1,6 @@
 import { useViewer } from '@/context/ViewerContext';
 import { setActiveTool } from '@/core/toolManager';
 import { WindowLevelPresets } from '@/components/tools/WindowLevel';
-import { ImplantPropertiesPanel } from '@/components/implant/ImplantOverlay';
 import { generateDefaultArchCurve } from '@/core/archCurve';
 import { cache } from '@cornerstonejs/core';
 import type { ViewportTool, LayoutMode, ViewMode, ProjectionMode } from '@/types/dicom';
@@ -323,7 +322,6 @@ export function Toolbar() {
               >
                 + Implantátum
               </button>
-              <ImplantPropertiesPanel />
             </>
           )}
         </>
@@ -331,6 +329,22 @@ export function Toolbar() {
 
       {/* Spacer */}
       <div className="flex-1" />
+
+      {/* Layers panel toggle */}
+      {state.study && (
+        <button
+          onClick={() => dispatch({ type: 'SET_LAYERS_PANEL_OPEN', payload: !state.layersPanelOpen })}
+          className={`
+            px-3 py-1.5 text-sm rounded transition-colors
+            ${state.layersPanelOpen
+              ? 'bg-dental-600 text-white'
+              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}
+          `}
+          title="Rétegek panel megnyitása/bezárása"
+        >
+          Rétegek
+        </button>
+      )}
 
       {/* Reset */}
       {state.study && (

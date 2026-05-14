@@ -67,16 +67,23 @@ export const ORIENTATION_LABELS: Record<MPROrientation, string> = {
 
 export interface ImplantData {
   id: string;
-  /** World position of the implant tip (entry point into bone) in mm */
-  positionMm: [number, number]; // [horizontal offset from curve center, Z]
+  /** Layer name shown in the layers panel */
+  name: string;
+  /** Layer visibility */
+  visible: boolean;
+  /** Entry point (platform center) in world coordinates, mm */
+  position: [number, number, number];
   /** Diameter in mm (typical: 3.0–6.0) */
   diameter: number;
   /** Length in mm (typical: 6.0–16.0) */
   length: number;
-  /** Angle in degrees from vertical (0 = straight down, positive = tilted right) */
-  angleDeg: number;
-  /** Arch curve position (0-1) where this implant belongs */
-  curvePosition: number;
+  /**
+   * Buccolingual apex rotation in degrees, in the cross-section plane.
+   * Full ±180° range: 0 = apex down (lower jaw), ±180 = apex up (upper jaw).
+   */
+  angleBLDeg: number;
+  /** Mesiodistal apex tilt in degrees (lean along the arch, visible on the panoramic) */
+  angleMDDeg: number;
 }
 
 export const IMPLANT_DIAMETERS = [3.0, 3.3, 3.5, 3.75, 4.0, 4.2, 4.5, 5.0, 5.5, 6.0];

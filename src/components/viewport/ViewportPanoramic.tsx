@@ -3,6 +3,8 @@ import { getRenderingEngine, Enums } from '@cornerstonejs/core';
 import { useViewer } from '@/context/ViewerContext';
 import { generatePanoramic, type CPRResult } from '@/core/cprEngine';
 import { RENDERING_ENGINE_ID, VP_AXIAL } from '@/core/constants';
+import { ImplantShape } from '@/components/implant/ImplantShape';
+import { nearestArchFrame, archFrameAt, implantAxis } from '@/core/implantGeometry';
 
 interface ViewportPanoramicProps {
   volumeId: string;
@@ -110,6 +112,11 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
 
   // W/L mouse drag state
   const wlDragRef = useRef<{ startX: number; startY: number; startWc: number; startWw: number } | null>(null);
+
+  // Implant drag state (position editing on the panoramic)
+  const implantsRef = useRef(state.implants);
+  implantsRef.current = state.implants;
+  const [implantDrag, setImplantDrag] = useState<{ id: string; offsetPx: [number, number] } | null>(null);
 
   // Render current result with current W/L
   const renderCurrent = useCallback(() => {
@@ -267,16 +274,28 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
 
   // ── Vertical cross-section line drag ────────────────────────
 
+  // Offset between the cursor and the line's CENTER X at grab time. The line
+  // is tilted, so grabbing it away from its vertical middle (or anywhere in
+  // the 14px-wide hit stroke) must not snap the center under the cursor.
+  const vLineGrabOffsetRef = useRef(0);
+
   const handleVLinePointerDown = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    const container = containerRef.current;
+    if (container && vLineLeft !== null) {
+      const rect = container.getBoundingClientRect();
+      vLineGrabOffsetRef.current = e.clientX - (rect.left + vLineLeft);
+    } else {
+      vLineGrabOffsetRef.current = 0;
+    }
     setVLineDragging(true);
-  }, []);
+  }, [vLineLeft]);
 
   useEffect(() => {
     if (!vLineDragging) return;
     const handleMove = (e: PointerEvent) => {
-      const pos = containerXToPosition(e.clientX);
+      const pos = containerXToPosition(e.clientX - vLineGrabOffsetRef.current);
       dispatch({ type: 'SET_CROSS_SECTION_POSITION', payload: pos });
       setVLineLeft(positionToContainerX(pos));
     };
@@ -330,6 +349,46 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
     setVLineLeft(positionToContainerX(state.crossSectionPosition));
   }, [state.crossSectionPosition, positionToContainerX]);
 
+  // ── Implant drag on the panoramic ───────────────────────────
+  // Moves the implant along the arch (X) and vertically (Z), preserving its
+  // buccolingual offset from the arch curve.
+
+  useEffect(() => {
+    if (!implantDrag) return;
+    const controlPoints = state.archCurveControlPoints;
+    if (!controlPoints) return;
+
+    const handleMove = (e: PointerEvent) => {
+      const imp = implantsRef.current.find(i => i.id === implantDrag.id);
+      if (!imp) return;
+      const s = containerXToPosition(e.clientX - implantDrag.offsetPx[0]);
+      const z = containerYToZ(e.clientY - implantDrag.offsetPx[1]);
+      if (z === null) return;
+      const af = archFrameAt(controlPoints, s);
+      if (!af) return;
+      // Preserve the current buccolingual offset from the curve
+      const afCur = nearestArchFrame(controlPoints, [imp.position[0], imp.position[1]]);
+      const w0 = afCur
+        ? (imp.position[0] - afCur.point[0]) * afCur.normal[0]
+          + (imp.position[1] - afCur.point[1]) * afCur.normal[1]
+        : 0;
+      const pos: [number, number, number] = [
+        af.point[0] + af.normal[0] * w0,
+        af.point[1] + af.normal[1] * w0,
+        z,
+      ];
+      dispatch({ type: 'UPDATE_IMPLANT', payload: { ...imp, position: pos } });
+    };
+    const handleUp = () => setImplantDrag(null);
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    return () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+    };
+  }, [implantDrag, state.archCurveControlPoints, containerXToPosition, containerYToZ, dispatch]);
+
   // ── W/L pointer interaction ─────────────────────────────────
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
@@ -366,6 +425,69 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
   }, [vLineLeft, state.crossSectionTiltDeg]);
 
   const vLinePts = showCrossSectionLine ? getVLineSVGPoints() : null;
+
+  // Implant sections on the panoramic: X from the implant's nearest arch
+  // position, Y from its world z, mesiodistal lean shown in-plane, and a
+  // depth fade by how far the implant sits from the arch surface relative to
+  // the panoramic slab. Draggable: moves the implant along the arch and in Z.
+  const renderImplants = () => {
+    if (state.implants.length === 0 || !state.archCurveControlPoints) return null;
+    const r = resultRef.current;
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!r || !canvas || !container) return null;
+    const cr = getContentRect(container, canvas);
+    const pxPerMm = cr.height / (r.zMax - r.zMin);
+    const halfSlab = Math.max(1, state.panoramicSlabWidth / 2);
+
+    return (
+      <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none', zIndex: 22 }}>
+        {state.implants.filter(i => i.visible).map(imp => {
+          const af = nearestArchFrame(state.archCurveControlPoints!, [imp.position[0], imp.position[1]]);
+          if (!af) return null;
+          const x = positionToContainerX(af.s);
+          const y = zToContainerY(imp.position[2]);
+          if (x === null || y === null) return null;
+
+          const axis = implantAxis(af, imp.angleBLDeg, imp.angleMDDeg);
+          // Panoramic in-plane axes: arch tangent (horizontal) and Z (vertical)
+          const aT = axis[0] * af.tangent[0] + axis[1] * af.tangent[1];
+          const angle = Math.atan2(aT, -axis[2]) * (180 / Math.PI);
+          const inPlaneLen = imp.length * Math.hypot(aT, axis[2]);
+
+          // Depth fade: buccolingual distance from the arch surface vs slab
+          const w0 = (imp.position[0] - af.point[0]) * af.normal[0]
+                   + (imp.position[1] - af.point[1]) * af.normal[1];
+          const over = Math.max(0, Math.abs(w0) - halfSlab);
+          const opacity = Math.max(0.15, Math.min(1, 1 - over / halfSlab));
+
+          return (
+            <ImplantShape
+              key={imp.id}
+              x={x}
+              y={y}
+              widthPx={imp.diameter * pxPerMm}
+              heightPx={inPlaneLen * pxPerMm}
+              angleDeg={angle}
+              active={state.activeImplantId === imp.id}
+              opacity={opacity}
+              interactive
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                dispatch({ type: 'SET_ACTIVE_IMPLANT', payload: imp.id });
+                const rect = container.getBoundingClientRect();
+                setImplantDrag({
+                  id: imp.id,
+                  offsetPx: [e.clientX - (rect.left + x), e.clientY - (rect.top + y)],
+                });
+              }}
+            />
+          );
+        })}
+      </svg>
+    );
+  };
 
   return (
     <div
@@ -434,6 +556,9 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
           />
         </svg>
       )}
+
+      {/* Implant projections */}
+      {renderImplants()}
 
       {/* Label */}
       <div className="absolute top-1 left-1/2 -translate-x-1/2 text-yellow-400 text-xs font-mono font-bold pointer-events-none select-none [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">

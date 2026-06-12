@@ -3,6 +3,7 @@ import { RenderingEngine } from '@cornerstonejs/core';
 import { Toolbar } from './Toolbar';
 import { SeriesList } from '@/components/dicom/SeriesList';
 import { ViewportGrid } from '@/components/viewport/ViewportGrid';
+import { LayersPanel } from '@/components/layers/LayersPanel';
 import { useViewer } from '@/context/ViewerContext';
 import { setupTools } from '@/core/toolManager';
 import { createVolume } from '@/core/volumeBuilder';
@@ -72,7 +73,7 @@ export function ViewerShell() {
             <SeriesList />
           </div>
         )}
-        <div className="flex-1">
+        <div className="flex-1 relative overflow-hidden">
           {engineReady ? (
             <ViewportGrid />
           ) : (
@@ -80,6 +81,7 @@ export function ViewerShell() {
               <div className="w-8 h-8 border-4 border-dental-400 border-t-transparent rounded-full animate-spin" />
             </div>
           )}
+          <LayersPanel />
         </div>
       </div>
     </div>

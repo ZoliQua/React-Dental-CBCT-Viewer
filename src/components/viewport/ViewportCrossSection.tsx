@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { getRenderingEngine, Enums } from '@cornerstonejs/core';
 import { useViewer } from '@/context/ViewerContext';
+import { useI18n } from '@/i18n/I18nContext';
 import { generateCrossSection, type CrossSectionResult } from '@/core/cprEngine';
 import { RENDERING_ENGINE_ID, VP_AXIAL } from '@/core/constants';
 import { ImplantOverlay } from '@/components/implant/ImplantOverlay';
@@ -84,6 +85,7 @@ function getContentRect(container: HTMLElement, canvas: HTMLCanvasElement) {
 
 export function ViewportCrossSection({ volumeId }: ViewportCrossSectionProps) {
   const { state } = useViewer();
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const resultRef = useRef<CrossSectionResult | null>(null);
@@ -296,13 +298,13 @@ export function ViewportCrossSection({ volumeId }: ViewportCrossSectionProps) {
 
       {/* Label */}
       <div className="absolute top-1 left-1/2 -translate-x-1/2 text-yellow-400 text-xs font-mono font-bold pointer-events-none select-none [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
-        Keresztmetszet
+        {t('viewport.crossSection')}
       </div>
 
       {/* Tilt info */}
       {state.crossSectionTiltDeg !== 0 && (
         <div className="absolute top-5 left-1/2 -translate-x-1/2 text-gray-400 text-[10px] font-mono pointer-events-none select-none [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
-          Döntés: {state.crossSectionTiltDeg.toFixed(0)}°
+          {t('viewport.tilt', { deg: state.crossSectionTiltDeg.toFixed(0) })}
         </div>
       )}
 
@@ -313,14 +315,14 @@ export function ViewportCrossSection({ volumeId }: ViewportCrossSectionProps) {
 
       {computing && (
         <div className="absolute top-1 right-2 text-dental-400 text-xs font-mono animate-pulse pointer-events-none">
-          Számítás...
+          {t('viewport.computing')}
         </div>
       )}
 
       {/* Implant placement mode indicator */}
       {state.implantPlacementMode && (
         <div className="absolute top-1 right-2 text-yellow-400 text-xs font-mono font-bold pointer-events-none select-none animate-pulse [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
-          Kattints az implantátum elhelyezéséhez
+          {t('viewport.placeImplantHint')}
         </div>
       )}
 

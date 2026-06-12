@@ -1,9 +1,14 @@
 import { useEffect, useCallback } from 'react';
 import { ViewerProvider, useViewer } from '@/context/ViewerContext';
+import { I18nProvider, useI18n } from '@/i18n/I18nContext';
+import { ThemeProvider } from '@/context/ThemeContext';
 import { initCornerstone } from '@/core/init';
 import { setActiveTool } from '@/core/toolManager';
-import { FileDropZone } from '@/components/dicom/FileDropZone';
+import { LandingPage } from '@/components/dicom/LandingPage';
 import { ViewerShell } from '@/components/layout/ViewerShell';
+import { TopBar } from '@/components/layout/TopBar';
+import { SettingsPanel } from '@/components/panels/SettingsPanel';
+import { HelpPanel } from '@/components/panels/HelpPanel';
 import type { ViewportTool } from '@/types/dicom';
 
 const SHORTCUT_MAP: Record<string, ViewportTool> = {
@@ -25,6 +30,7 @@ const SHORTCUT_MAP: Record<string, ViewportTool> = {
 
 function ViewerApp() {
   const { state, dispatch } = useViewer();
+  const { t } = useI18n();
 
   // Keyboard shortcuts
   const handleKeyDown = useCallback(
@@ -52,43 +58,49 @@ function ViewerApp() {
       .catch((err) => {
         dispatch({
           type: 'SET_ERROR',
-          payload: `Cornerstone inicializálási hiba: ${err instanceof Error ? err.message : String(err)}`,
+          payload: t('app.initError', { msg: err instanceof Error ? err.message : String(err) }),
         });
       });
-  }, [dispatch]);
+  }, [dispatch, t]);
 
+  let content;
   if (!state.isInitialized) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-gray-900">
+    content = (
+      <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-dental-400 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">DICOM Viewer inicializálás...</p>
+          <p className="text-gray-600 dark:text-gray-400">{t('app.initializing')}</p>
         </div>
       </div>
     );
-  }
-
-  if (state.error && !state.study) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-gray-900">
+  } else if (state.error && !state.study) {
+    content = (
+      <div className="flex items-center justify-center h-full">
         <div className="text-center max-w-md">
-          <p className="text-red-400 mb-4">{state.error}</p>
+          <p className="text-red-500 dark:text-red-400 mb-4">{state.error}</p>
           <button
             onClick={() => dispatch({ type: 'SET_ERROR', payload: null })}
-            className="px-4 py-2 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 transition-colors"
+            className="px-4 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 rounded transition-colors"
           >
-            Újrapróbálás
+            {t('app.retry')}
           </button>
         </div>
       </div>
     );
+  } else if (!state.study) {
+    content = <LandingPage />;
+  } else {
+    content = <ViewerShell />;
   }
 
-  if (!state.study) {
-    return <FileDropZone />;
-  }
-
-  return <ViewerShell />;
+  return (
+    <div className="flex flex-col h-screen w-screen bg-gray-100 dark:bg-gray-900">
+      <TopBar />
+      <div className="flex-1 overflow-hidden">{content}</div>
+      <SettingsPanel />
+      <HelpPanel />
+    </div>
+  );
 }
 
 // Props interface for future DentalQuoteCreator integration
@@ -101,8 +113,12 @@ export interface DicomViewerProps {
 
 export default function DicomViewer(_props: DicomViewerProps = {}) {
   return (
-    <ViewerProvider>
-      <ViewerApp />
-    </ViewerProvider>
+    <I18nProvider>
+      <ThemeProvider>
+        <ViewerProvider>
+          <ViewerApp />
+        </ViewerProvider>
+      </ThemeProvider>
+    </I18nProvider>
   );
 }

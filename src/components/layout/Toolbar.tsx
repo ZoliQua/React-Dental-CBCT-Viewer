@@ -1,38 +1,34 @@
 import { useViewer } from '@/context/ViewerContext';
+import { useI18n } from '@/i18n/I18nContext';
 import { setActiveTool } from '@/core/toolManager';
-import { WindowLevelPresets } from '@/components/tools/WindowLevel';
 import { generateDefaultArchCurve } from '@/core/archCurve';
 import { cache } from '@cornerstonejs/core';
 import type { ViewportTool, LayoutMode, ViewMode, ProjectionMode } from '@/types/dicom';
+import { VIEW_LABEL_KEYS } from '@/types/dicom';
 
-const tools: { id: ViewportTool; label: string; shortcut: string }[] = [
-  { id: 'windowLevel', label: 'W/L', shortcut: 'W' },
-  { id: 'pan', label: 'Mozgatás', shortcut: 'P' },
-  { id: 'zoom', label: 'Nagyítás', shortcut: 'Z' },
-  { id: 'scroll', label: 'Görgetés', shortcut: 'S' },
+const tools: { id: ViewportTool; labelKey: string; shortcut: string }[] = [
+  { id: 'windowLevel', labelKey: 'tool.windowLevel', shortcut: 'W' },
+  { id: 'pan', labelKey: 'tool.pan', shortcut: 'P' },
+  { id: 'zoom', labelKey: 'tool.zoom', shortcut: 'Z' },
+  { id: 'scroll', labelKey: 'tool.scroll', shortcut: 'S' },
 ];
 
 // Crosshairs is separate — only enabled in multi-view layouts
-const crosshairTool = { id: 'crosshairs' as ViewportTool, label: 'Szálkereszt', shortcut: 'X' };
+const crosshairTool = { id: 'crosshairs' as ViewportTool, labelKey: 'tool.crosshairs', shortcut: 'X' };
 
-const measureTools: { id: ViewportTool; label: string; shortcut: string }[] = [
-  { id: 'length', label: 'Távolság', shortcut: 'L' },
-  { id: 'angle', label: 'Szög', shortcut: 'A' },
-  { id: 'ellipticalRoi', label: 'Ellipszis', shortcut: 'E' },
-  { id: 'circleRoi', label: 'Kör', shortcut: 'C' },
-  { id: 'rectangleRoi', label: 'Téglalap', shortcut: 'R' },
-  { id: 'freehandRoi', label: 'Szabadkézi', shortcut: 'F' },
-  { id: 'bidirectional', label: 'Kétirányú', shortcut: 'B' },
-  { id: 'probe', label: 'HU szonda', shortcut: 'H' },
-  { id: 'arrowAnnotate', label: 'Nyíl', shortcut: 'N' },
+const measureTools: { id: ViewportTool; labelKey: string; shortcut: string }[] = [
+  { id: 'length', labelKey: 'tool.length', shortcut: 'L' },
+  { id: 'angle', labelKey: 'tool.angle', shortcut: 'A' },
+  { id: 'ellipticalRoi', labelKey: 'tool.ellipse', shortcut: 'E' },
+  { id: 'circleRoi', labelKey: 'tool.circle', shortcut: 'C' },
+  { id: 'rectangleRoi', labelKey: 'tool.rectangle', shortcut: 'R' },
+  { id: 'freehandRoi', labelKey: 'tool.freehand', shortcut: 'F' },
+  { id: 'bidirectional', labelKey: 'tool.bidirectional', shortcut: 'B' },
+  { id: 'probe', labelKey: 'tool.probe', shortcut: 'H' },
+  { id: 'arrowAnnotate', labelKey: 'tool.arrow', shortcut: 'N' },
 ];
 
-const viewModes: { id: ViewMode; label: string }[] = [
-  { id: 'AXIAL', label: 'Axiális' },
-  { id: 'SAGITTAL', label: 'Szagittális' },
-  { id: 'CORONAL', label: 'Koronális' },
-  { id: '3D', label: '3D' },
-];
+const viewModes: ViewMode[] = ['AXIAL', 'SAGITTAL', 'CORONAL', '3D'];
 
 const layouts: { id: LayoutMode; label: string }[] = [
   { id: '1x1', label: '1×1' },
@@ -42,31 +38,35 @@ const layouts: { id: LayoutMode; label: string }[] = [
   { id: 'OPG2+1', label: 'Pan 2+1' },
 ];
 
+const BTN_BASE = 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600';
+const BTN_ACTIVE = 'bg-dental-600 text-white';
+const BTN_DISABLED = 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500 cursor-not-allowed';
+
 function ToolButton({
-  tool,
+  label,
+  shortcut,
   isActive,
   onClick,
 }: {
-  tool: { id: string; label: string; shortcut: string };
+  label: string;
+  shortcut: string;
   isActive: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`
-        px-3 py-1.5 text-sm rounded transition-colors
-        ${isActive ? 'bg-dental-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}
-      `}
-      title={`${tool.label} (${tool.shortcut})`}
+      className={`px-3 py-1.5 text-sm rounded transition-colors ${isActive ? BTN_ACTIVE : BTN_BASE}`}
+      title={`${label} (${shortcut})`}
     >
-      {tool.label}
+      {label}
     </button>
   );
 }
 
 export function Toolbar() {
   const { state, dispatch } = useViewer();
+  const { t } = useI18n();
 
   const handleToolChange = (tool: ViewportTool) => {
     setActiveTool(tool);
@@ -130,16 +130,14 @@ export function Toolbar() {
   const isMultiView = isMPRMultiView || isOPG;
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2 bg-gray-800 border-b border-gray-700 flex-wrap">
-      {/* Logo */}
-      <div className="text-sm font-semibold text-dental-400 mr-1">DQ DICOM</div>
-
+    <div className="flex items-center gap-3 px-4 py-2 bg-gray-100 border-b border-gray-300 dark:bg-gray-800 dark:border-gray-700 flex-wrap">
       {/* Navigation tools */}
       <div className="flex gap-1">
         {tools.map((tool) => (
           <ToolButton
             key={tool.id}
-            tool={tool}
+            label={t(tool.labelKey)}
+            shortcut={tool.shortcut}
             isActive={state.activeTool === tool.id}
             onClick={() => handleToolChange(tool.id)}
           />
@@ -150,73 +148,57 @@ export function Toolbar() {
           disabled={!isMPRMultiView}
           className={`
             px-3 py-1.5 text-sm rounded transition-colors
-            ${
-              !isMPRMultiView
-                ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
-                : state.activeTool === 'crosshairs'
-                  ? 'bg-dental-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-            }
+            ${!isMPRMultiView ? BTN_DISABLED : state.activeTool === 'crosshairs' ? BTN_ACTIVE : BTN_BASE}
           `}
           title={
             !isMPRMultiView
-              ? 'Szálkereszt csak többnézetes módban (2×2 / 1+3)'
-              : `${crosshairTool.label} (${crosshairTool.shortcut})`
+              ? t('toolbar.crosshairsOnlyMulti')
+              : `${t(crosshairTool.labelKey)} (${crosshairTool.shortcut})`
           }
         >
-          {crosshairTool.label}
+          {t(crosshairTool.labelKey)}
         </button>
       </div>
 
-      <div className="w-px h-6 bg-gray-600" />
+      <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
 
       {/* Measurement tools */}
       <div className="flex gap-1">
         {measureTools.map((tool) => (
           <ToolButton
             key={tool.id}
-            tool={tool}
+            label={t(tool.labelKey)}
+            shortcut={tool.shortcut}
             isActive={state.activeTool === tool.id}
             onClick={() => handleToolChange(tool.id)}
           />
         ))}
       </div>
 
-      <div className="w-px h-6 bg-gray-600" />
-
-      {/* W/L Presets */}
-      {state.study && <WindowLevelPresets />}
-
       {/* View mode (orientation + 3D) — only clickable in 1x1 */}
       {state.study && (
         <>
-          <div className="w-px h-6 bg-gray-600" />
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
           <div className="flex gap-1">
             {viewModes.map((v) => (
               <button
-                key={v.id}
-                onClick={() => handleViewModeChange(v.id)}
+                key={v}
+                onClick={() => handleViewModeChange(v)}
                 disabled={isMultiView}
                 className={`
                   px-2 py-1.5 text-xs rounded transition-colors
-                  ${
-                    isMultiView
-                      ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
-                      : state.viewMode === v.id
-                        ? 'bg-dental-600 text-white'
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  }
+                  ${isMultiView ? BTN_DISABLED : state.viewMode === v ? BTN_ACTIVE : BTN_BASE}
                 `}
-                title={isMultiView ? 'Többnézetes módban mind látható' : v.label}
+                title={isMultiView ? t('toolbar.multiviewAllVisible') : t(VIEW_LABEL_KEYS[v])}
               >
-                {v.label}
+                {t(VIEW_LABEL_KEYS[v])}
               </button>
             ))}
           </div>
         </>
       )}
 
-      <div className="w-px h-6 bg-gray-600" />
+      <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
 
       {/* Layout switcher */}
       {state.study && (
@@ -227,13 +209,9 @@ export function Toolbar() {
               onClick={() => handleLayoutChange(l.id)}
               className={`
                 px-2 py-1.5 text-xs rounded font-mono transition-colors
-                ${
-                  state.layoutMode === l.id
-                    ? 'bg-dental-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }
+                ${state.layoutMode === l.id ? BTN_ACTIVE : BTN_BASE}
               `}
-              title={`Elrendezés: ${l.label}`}
+              title={t('toolbar.layout', { label: l.label })}
             >
               {l.label}
             </button>
@@ -244,9 +222,9 @@ export function Toolbar() {
       {/* Panoramic OPG controls — visible in OPG layout */}
       {state.study && (state.layoutMode === 'OPG' || state.layoutMode === 'OPG2+1') && (
         <>
-          <div className="w-px h-6 bg-gray-600" />
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
           <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-400 select-none">Szélesség</label>
+            <label className="text-xs text-gray-600 dark:text-gray-400 select-none">{t('opg.width')}</label>
             <input
               type="range"
               min={5}
@@ -256,7 +234,7 @@ export function Toolbar() {
               onChange={(e) => dispatch({ type: 'SET_PANORAMIC_SLAB', payload: Number(e.target.value) })}
               className="w-20 h-1 accent-dental-400"
             />
-            <span className="text-xs text-gray-300 font-mono w-10">{state.panoramicSlabWidth} mm</span>
+            <span className="text-xs text-gray-700 dark:text-gray-300 font-mono w-10">{state.panoramicSlabWidth} mm</span>
           </div>
           <div className="flex gap-1">
             {(['AVG', 'MIP'] as ProjectionMode[]).map((mode) => (
@@ -265,9 +243,7 @@ export function Toolbar() {
                 onClick={() => dispatch({ type: 'SET_PANORAMIC_PROJECTION', payload: mode })}
                 className={`
                   px-2 py-1 text-xs rounded transition-colors
-                  ${state.panoramicProjection === mode
-                    ? 'bg-dental-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}
+                  ${state.panoramicProjection === mode ? BTN_ACTIVE : BTN_BASE}
                 `}
               >
                 {mode}
@@ -278,7 +254,7 @@ export function Toolbar() {
             <select
               value={state.panoramicResolution}
               onChange={(e) => dispatch({ type: 'SET_PANORAMIC_RESOLUTION', payload: Number(e.target.value) })}
-              className="bg-gray-700 text-gray-300 text-xs rounded px-1 py-1 border border-gray-600"
+              className="bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 text-xs rounded px-1 py-1 border border-gray-300 dark:border-gray-600"
             >
               <option value={0.15}>150 µm</option>
               <option value={0.3}>300 µm</option>
@@ -290,37 +266,35 @@ export function Toolbar() {
               <option value={5.0}>5.0 mm</option>
             </select>
           </div>
-          <div className="w-px h-6 bg-gray-600" />
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
           <button
             onClick={() => handleExportCanvas('[data-panoramic-canvas]', `panorama_${Date.now()}.png`)}
-            className="px-2 py-1 text-xs bg-gray-700 text-gray-300 hover:bg-dental-600 hover:text-white rounded transition-colors"
-            title="Panoráma mentése PNG-ként"
+            className={`px-2 py-1 text-xs rounded transition-colors ${BTN_BASE} hover:!bg-dental-600 hover:!text-white`}
+            title={t('opg.savePng')}
           >
-            Mentés PNG
+            {t('opg.savePng')}
           </button>
           {state.layoutMode === 'OPG2+1' && (
             <button
-              onClick={() => handleExportCanvas('[data-crosssection-canvas]', `keresztmetszet_${Date.now()}.png`)}
-              className="px-2 py-1 text-xs bg-gray-700 text-gray-300 hover:bg-dental-600 hover:text-white rounded transition-colors"
-              title="Keresztmetszet mentése PNG-ként"
+              onClick={() => handleExportCanvas('[data-crosssection-canvas]', `crosssection_${Date.now()}.png`)}
+              className={`px-2 py-1 text-xs rounded transition-colors ${BTN_BASE} hover:!bg-dental-600 hover:!text-white`}
+              title={t('opg.sectionPng')}
             >
-              Metszet PNG
+              {t('opg.sectionPng')}
             </button>
           )}
           {state.layoutMode === 'OPG2+1' && (
             <>
-              <div className="w-px h-6 bg-gray-600" />
+              <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
               <button
                 onClick={() => dispatch({ type: 'SET_IMPLANT_PLACEMENT_MODE', payload: !state.implantPlacementMode })}
                 className={`
                   px-2 py-1 text-xs rounded transition-colors
-                  ${state.implantPlacementMode
-                    ? 'bg-dental-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}
+                  ${state.implantPlacementMode ? BTN_ACTIVE : BTN_BASE}
                 `}
-                title="Implantátum elhelyezése a keresztmetszeten"
+                title={t('opg.addImplantTitle')}
               >
-                + Implantátum
+                {t('opg.addImplant')}
               </button>
             </>
           )}
@@ -333,16 +307,14 @@ export function Toolbar() {
       {/* Layers panel toggle */}
       {state.study && (
         <button
-          onClick={() => dispatch({ type: 'SET_LAYERS_PANEL_OPEN', payload: !state.layersPanelOpen })}
+          onClick={() => dispatch({ type: 'TOGGLE_PANEL', payload: 'layers' })}
           className={`
             px-3 py-1.5 text-sm rounded transition-colors
-            ${state.layersPanelOpen
-              ? 'bg-dental-600 text-white'
-              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}
+            ${state.activePanel === 'layers' ? BTN_ACTIVE : BTN_BASE}
           `}
-          title="Rétegek panel megnyitása/bezárása"
+          title={t('toolbar.layers')}
         >
-          Rétegek
+          {t('toolbar.layers')}
         </button>
       )}
 
@@ -350,9 +322,9 @@ export function Toolbar() {
       {state.study && (
         <button
           onClick={handleReset}
-          className="px-3 py-1.5 text-sm bg-gray-700 text-gray-300 hover:bg-red-700 hover:text-white rounded transition-colors"
+          className={`px-3 py-1.5 text-sm rounded transition-colors ${BTN_BASE} hover:!bg-red-700 hover:!text-white`}
         >
-          Új betöltés
+          {t('toolbar.reload')}
         </button>
       )}
     </div>

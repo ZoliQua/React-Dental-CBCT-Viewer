@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useViewer } from '@/context/ViewerContext';
+import { useI18n } from '@/i18n/I18nContext';
 import type { ImplantData } from '@/types/dicom';
 import { ImplantShape } from './ImplantShape';
 import { crossSectionFrame } from '@/core/cprMath';
@@ -50,6 +51,7 @@ function getContentRect(container: HTMLElement, canvas: HTMLCanvasElement) {
 
 export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }: ImplantOverlayProps) {
   const { state, dispatch } = useViewer();
+  const { t } = useI18n();
   const implantsRef = useRef(state.implants);
   implantsRef.current = state.implants;
 
@@ -139,7 +141,7 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
 
     const implant: ImplantData = {
       id: `imp_${Date.now()}`,
-      name: `Implantátum ${state.implants.length + 1}`,
+      name: t('implant.defaultName', { n: state.implants.length + 1 }),
       visible: true,
       position: world,
       diameter: 4.0,
@@ -148,7 +150,7 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
       angleMDDeg: 0,
     };
     dispatch({ type: 'ADD_IMPLANT', payload: implant });
-  }, [state.implantPlacementMode, state.implants.length, pixelToMm, worldFromImage, dispatch]);
+  }, [state.implantPlacementMode, state.implants.length, pixelToMm, worldFromImage, dispatch, t]);
 
   // ── Drag to move (preserves out-of-plane offset) ────────────
 

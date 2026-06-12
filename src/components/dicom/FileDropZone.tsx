@@ -1,8 +1,10 @@
 import { useCallback, useState, type DragEvent, type ChangeEvent } from 'react';
 import { useDicomLoader } from '@/hooks/useDicomLoader';
+import { useI18n } from '@/i18n/I18nContext';
 
 export function FileDropZone() {
   const { loadFiles, isLoading, loadProgress, error } = useDicomLoader();
+  const { t } = useI18n();
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleDragOver = useCallback((e: DragEvent) => {
@@ -80,20 +82,20 @@ export function FileDropZone() {
       : 0;
 
   return (
-    <div className="flex items-center justify-center w-full h-full bg-gray-900 p-8">
+    <div className="flex items-center justify-center w-full">
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={`
           relative flex flex-col items-center justify-center
-          w-full max-w-2xl h-80
+          w-full h-80
           border-2 border-dashed rounded-2xl
           transition-all duration-200 cursor-pointer
           ${
             isDragOver
-              ? 'border-dental-400 bg-dental-900/30 scale-[1.02]'
-              : 'border-gray-600 bg-gray-800/50 hover:border-gray-500 hover:bg-gray-800/70'
+              ? 'border-dental-400 bg-dental-100/50 dark:bg-dental-900/30 scale-[1.02]'
+              : 'border-gray-400 bg-white/60 hover:border-gray-500 hover:bg-white dark:border-gray-600 dark:bg-gray-800/50 dark:hover:border-gray-500 dark:hover:bg-gray-800/70'
           }
         `}
       >
@@ -108,16 +110,16 @@ export function FileDropZone() {
         {isLoading ? (
           <div className="flex flex-col items-center">
             <div className="w-12 h-12 border-4 border-dental-400 border-t-transparent rounded-full animate-spin mb-4" />
-            <p className="text-lg text-gray-300">DICOM fájlok feldolgozása...</p>
+            <p className="text-lg text-gray-700 dark:text-gray-300">{t('drop.processing')}</p>
             {loadProgress && (
               <div className="mt-3 w-64">
                 <div className="flex justify-between text-xs text-gray-500 mb-1">
                   <span>
-                    {loadProgress.loaded} / {loadProgress.total} fájl
+                    {t('drop.files', { loaded: loadProgress.loaded, total: loadProgress.total })}
                   </span>
                   <span>{progressPercent}%</span>
                 </div>
-                <div className="w-full bg-gray-700 rounded-full h-2">
+                <div className="w-full bg-gray-300 dark:bg-gray-700 rounded-full h-2">
                   <div
                     className="bg-dental-500 h-2 rounded-full transition-all duration-150"
                     style={{ width: `${progressPercent}%` }}
@@ -141,11 +143,11 @@ export function FileDropZone() {
                 d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
               />
             </svg>
-            <p className="text-lg text-gray-300 mb-2">DICOM fájlok betöltése</p>
+            <p className="text-lg text-gray-700 dark:text-gray-300 mb-2">{t('drop.title')}</p>
             <p className="text-sm text-gray-500">
-              Húzza ide a fájlokat vagy mappát, vagy kattintson a tallózáshoz
+              {t('drop.hint')}
             </p>
-            <p className="text-xs text-gray-600 mt-2">.dcm fájlok vagy DICOM mappa</p>
+            <p className="text-xs text-gray-500 dark:text-gray-600 mt-2">{t('drop.format')}</p>
           </>
         )}
 

@@ -1,9 +1,11 @@
 import { useCallback } from 'react';
 import { useViewer } from '@/context/ViewerContext';
+import { useI18n } from '@/i18n/I18nContext';
 import { parseDicomFiles } from '@/core/dicomLoader';
 
 export function useDicomLoader() {
   const { state, dispatch } = useViewer();
+  const { t } = useI18n();
 
   const loadFiles = useCallback(
     async (files: File[]) => {
@@ -14,11 +16,7 @@ export function useDicomLoader() {
       });
 
       if (dicomFiles.length === 0) {
-        dispatch({
-          type: 'SET_ERROR',
-          payload:
-            'Nem található DICOM fájl. A fájloknak .dcm kiterjesztéssel vagy kiterjesztés nélkülinek kell lenniük.',
-        });
+        dispatch({ type: 'SET_ERROR', payload: t('error.noDicom') });
         return;
       }
 
@@ -32,16 +30,16 @@ export function useDicomLoader() {
         if (study) {
           dispatch({ type: 'SET_STUDY', payload: study });
         } else {
-          dispatch({ type: 'SET_ERROR', payload: 'Nem sikerült a DICOM fájlok feldolgozása.' });
+          dispatch({ type: 'SET_ERROR', payload: t('error.processFailed') });
         }
       } catch (err) {
         dispatch({
           type: 'SET_ERROR',
-          payload: `Hiba a fájlok betöltésekor: ${err instanceof Error ? err.message : String(err)}`,
+          payload: t('error.loadError', { msg: err instanceof Error ? err.message : String(err) }),
         });
       }
     },
-    [dispatch],
+    [dispatch, t],
   );
 
   return {

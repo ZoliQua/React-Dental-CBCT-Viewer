@@ -65,11 +65,11 @@ export function ViewerShell() {
   }, [needsVolume, state.activeSeriesUID, state.study, state.volumeId, dispatch]);
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-gray-900">
+    <div className="flex flex-col h-full w-full bg-gray-100 dark:bg-gray-900">
       <Toolbar />
       <div className="flex flex-1 overflow-hidden">
         {hasSeries && (
-          <div className="w-56 bg-gray-800 border-r border-gray-700 overflow-y-auto">
+          <div className="w-56 bg-white border-r border-gray-300 dark:bg-gray-800 dark:border-gray-700 overflow-y-auto">
             <SeriesList />
           </div>
         )}

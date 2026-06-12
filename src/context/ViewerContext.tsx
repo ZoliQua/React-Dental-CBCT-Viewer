@@ -26,8 +26,8 @@ interface ViewerState {
   implants: ImplantData[];
   activeImplantId: string | null;
   implantPlacementMode: boolean;
-  // Layers panel
-  layersPanelOpen: boolean;
+  // Right-side slide-in panels (one open at a time)
+  activePanel: 'layers' | 'settings' | 'help' | null;
   measurementsVisible: boolean;
 }
 
@@ -54,7 +54,8 @@ type ViewerAction =
   | { type: 'REMOVE_IMPLANT'; payload: string }
   | { type: 'SET_ACTIVE_IMPLANT'; payload: string | null }
   | { type: 'SET_IMPLANT_PLACEMENT_MODE'; payload: boolean }
-  | { type: 'SET_LAYERS_PANEL_OPEN'; payload: boolean }
+  | { type: 'SET_ACTIVE_PANEL'; payload: 'layers' | 'settings' | 'help' | null }
+  | { type: 'TOGGLE_PANEL'; payload: 'layers' | 'settings' | 'help' }
   | { type: 'SET_MEASUREMENTS_VISIBLE'; payload: boolean }
   | { type: 'RESET' };
 
@@ -80,7 +81,7 @@ const initialState: ViewerState = {
   implants: [],
   activeImplantId: null,
   implantPlacementMode: false,
-  layersPanelOpen: false,
+  activePanel: null,
   measurementsVisible: true,
 };
 
@@ -136,8 +137,10 @@ function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
       return { ...state, activeImplantId: action.payload };
     case 'SET_IMPLANT_PLACEMENT_MODE':
       return { ...state, implantPlacementMode: action.payload };
-    case 'SET_LAYERS_PANEL_OPEN':
-      return { ...state, layersPanelOpen: action.payload };
+    case 'SET_ACTIVE_PANEL':
+      return { ...state, activePanel: action.payload };
+    case 'TOGGLE_PANEL':
+      return { ...state, activePanel: state.activePanel === action.payload ? null : action.payload };
     case 'SET_MEASUREMENTS_VISIBLE':
       return { ...state, measurementsVisible: action.payload };
     case 'RESET':

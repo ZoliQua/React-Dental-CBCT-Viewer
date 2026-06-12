@@ -3,6 +3,7 @@ import { getRenderingEngine, Enums, setVolumesForViewports, type Types } from '@
 import { setupTools, addViewportTo3DToolGroup } from '@/core/toolManager';
 import { RENDERING_ENGINE_ID, VP_3D } from '@/core/constants';
 import { useViewer } from '@/context/ViewerContext';
+import { useI18n } from '@/i18n/I18nContext';
 import { ViewportOverlay } from './ViewportOverlay';
 import { VOLUME_3D_PRESETS, type Volume3DPreset } from '@/types/dicom';
 
@@ -11,6 +12,7 @@ interface Viewport3DProps {
 }
 
 export function Viewport3D({ volumeId }: Viewport3DProps) {
+  const { t } = useI18n();
   const { state } = useViewer();
   const elementRef = useRef<HTMLDivElement>(null);
   const enabledRef = useRef(false);
@@ -160,7 +162,7 @@ export function Viewport3D({ volumeId }: Viewport3DProps) {
               }
             `}
           >
-            {p.label}
+            {t(p.labelKey)}
           </button>
         ))}
       </div>

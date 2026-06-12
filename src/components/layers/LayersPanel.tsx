@@ -6,7 +6,9 @@
 
 import { useState } from 'react';
 import { useViewer } from '@/context/ViewerContext';
+import { useI18n } from '@/i18n/I18nContext';
 import { ImplantEditPopup } from '@/components/implant/ImplantEditPopup';
+import { SidePanel } from '@/components/panels/SidePanel';
 import { setMeasurementsVisible, clearAllMeasurements } from '@/core/annotationLayer';
 
 // ── Tiny inline icons ──────────────────────────────────────────
@@ -66,10 +68,10 @@ function IconButton({
       className={`
         w-6 h-6 flex items-center justify-center rounded transition-colors
         ${disabled
-          ? 'text-gray-600 cursor-not-allowed'
+          ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
           : danger
-            ? 'text-gray-400 hover:text-white hover:bg-red-700'
-            : 'text-gray-400 hover:text-white hover:bg-gray-600'}
+            ? 'text-gray-500 hover:text-white hover:bg-red-700 dark:text-gray-400'
+            : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-600'}
       `}
     >
       {children}
@@ -91,6 +93,7 @@ interface LayerRowProps {
 }
 
 function LayerRow({ name, visible, active = false, onToggleVisible, onEdit, onDelete, onRename, onSelect }: LayerRowProps) {
+  const { t } = useI18n();
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(name);
 
@@ -104,7 +107,9 @@ function LayerRow({ name, visible, active = false, onToggleVisible, onEdit, onDe
     <div
       className={`
         flex items-center gap-1 px-2 py-1.5 rounded border
-        ${active ? 'border-dental-500 bg-gray-700/60' : 'border-transparent hover:bg-gray-700/40'}
+        ${active
+          ? 'border-dental-500 bg-gray-200/80 dark:bg-gray-700/60'
+          : 'border-transparent hover:bg-gray-200/50 dark:hover:bg-gray-700/40'}
       `}
       onClick={onSelect}
     >
@@ -118,26 +123,26 @@ function LayerRow({ name, visible, active = false, onToggleVisible, onEdit, onDe
             if (e.key === 'Enter') commitRename();
             if (e.key === 'Escape') { setDraft(name); setRenaming(false); }
           }}
-          className="flex-1 min-w-0 bg-gray-900 text-gray-200 text-xs rounded px-1 py-0.5 border border-dental-500 outline-none"
+          className="flex-1 min-w-0 bg-white text-gray-800 dark:bg-gray-900 dark:text-gray-200 text-xs rounded px-1 py-0.5 border border-dental-500 outline-none"
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
-        <span className={`flex-1 min-w-0 truncate text-xs select-none ${visible ? 'text-gray-200' : 'text-gray-500 line-through'}`}>
+        <span className={`flex-1 min-w-0 truncate text-xs select-none ${visible ? 'text-gray-800 dark:text-gray-200' : 'text-gray-500 line-through'}`}>
           {name}
         </span>
       )}
 
-      <IconButton title={visible ? 'Elrejtés' : 'Megjelenítés'} onClick={onToggleVisible}>
+      <IconButton title={visible ? t('layers.hide') : t('layers.show')} onClick={onToggleVisible}>
         <EyeIcon off={!visible} />
       </IconButton>
-      <IconButton title="Módosítás" onClick={onEdit} disabled={!onEdit}>
+      <IconButton title={t('layers.edit')} onClick={onEdit} disabled={!onEdit}>
         <SlidersIcon />
       </IconButton>
-      <IconButton title="Törlés" onClick={onDelete} disabled={!onDelete} danger>
+      <IconButton title={t('layers.delete')} onClick={onDelete} disabled={!onDelete} danger>
         <TrashIcon />
       </IconButton>
       <IconButton
-        title="Átnevezés"
+        title={t('layers.rename')}
         onClick={onRename ? () => { setDraft(name); setRenaming(true); } : undefined}
         disabled={!onRename}
       >
@@ -151,37 +156,22 @@ function LayerRow({ name, visible, active = false, onToggleVisible, onEdit, onDe
 
 export function LayersPanel() {
   const { state, dispatch } = useViewer();
+  const { t } = useI18n();
   const [editingId, setEditingId] = useState<string | null>(null);
-
-  const open = state.layersPanelOpen;
 
   return (
     <>
-      <div
-        className={`
-          absolute top-0 right-0 bottom-0 w-72 z-40
-          bg-gray-800 border-l border-gray-700 shadow-2xl
-          transform transition-transform duration-200
-          ${open ? 'translate-x-0' : 'translate-x-full'}
-          flex flex-col
-        `}
+      <SidePanel
+        open={state.activePanel === 'layers'}
+        title={t('layers.title')}
+        onClose={() => dispatch({ type: 'SET_ACTIVE_PANEL', payload: null })}
+        closeTitle={t('layers.close')}
       >
-        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700">
-          <span className="text-sm font-bold text-dental-400 select-none">Rétegek</span>
-          <button
-            onClick={() => dispatch({ type: 'SET_LAYERS_PANEL_OPEN', payload: false })}
-            className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 rounded"
-            title="Bezárás"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        <div className="space-y-1">
           {/* Implant layers */}
           {state.implants.length > 0 && (
             <div className="text-[10px] uppercase tracking-wide text-gray-500 px-1 pt-1 select-none">
-              Implantátumok
+              {t('layers.implants')}
             </div>
           )}
           {state.implants.map(imp => (
@@ -205,16 +195,16 @@ export function LayersPanel() {
           ))}
           {state.implants.length === 0 && (
             <div className="text-xs text-gray-500 px-1 py-2 select-none">
-              Még nincs implantátum — a „+ Implantátum” gombbal helyezhetsz el a keresztmetszeten.
+              {t('layers.none')}
             </div>
           )}
 
           {/* Measurements layer */}
           <div className="text-[10px] uppercase tracking-wide text-gray-500 px-1 pt-2 select-none">
-            Egyéb rétegek
+            {t('layers.other')}
           </div>
           <LayerRow
-            name="Mérések"
+            name={t('layers.measurements')}
             visible={state.measurementsVisible}
             onToggleVisible={() => {
               const next = !state.measurementsVisible;
@@ -222,13 +212,13 @@ export function LayersPanel() {
               dispatch({ type: 'SET_MEASUREMENTS_VISIBLE', payload: next });
             }}
             onDelete={() => {
-              if (window.confirm('Minden mérés törlése?')) {
+              if (window.confirm(t('layers.confirmClear'))) {
                 clearAllMeasurements();
               }
             }}
           />
         </div>
-      </div>
+      </SidePanel>
 
       {/* Edit popup */}
       {editingId && (

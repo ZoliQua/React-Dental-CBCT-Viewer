@@ -1,4 +1,5 @@
 import { useViewer } from '@/context/ViewerContext';
+import { useI18n } from '@/i18n/I18nContext';
 import { formatDicomDate } from '@/utils/dicomUtils';
 
 interface ViewportOverlayProps {
@@ -7,6 +8,7 @@ interface ViewportOverlayProps {
 }
 
 export function ViewportOverlay({ sliceIndex, totalSlices }: ViewportOverlayProps = {}) {
+  const { t } = useI18n();
   const { state } = useViewer();
   const { study, activeSeriesUID } = state;
 
@@ -36,7 +38,7 @@ export function ViewportOverlay({ sliceIndex, totalSlices }: ViewportOverlayProp
         <div className="absolute bottom-2 left-2 text-white text-xs font-mono pointer-events-none select-none [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
           <div>{activeSeries.seriesDescription}</div>
           <div>
-            {activeSeries.modality} &middot; {displayTotal > 0 ? `${displayIndex + 1} / ${displayTotal}` : activeSeries.imageCount} szelet
+            {activeSeries.modality} &middot; {displayTotal > 0 ? `${displayIndex + 1} / ${displayTotal}` : activeSeries.imageCount} {t('viewport.slices')}
           </div>
         </div>
       )}

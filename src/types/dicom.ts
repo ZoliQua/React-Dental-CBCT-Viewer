@@ -19,18 +19,19 @@ export interface DicomStudyInfo {
 }
 
 export interface WindowLevelPreset {
-  name: string;
+  /** Translation key suffix (preset.<key>) */
+  key: string;
   windowCenter: number;
   windowWidth: number;
 }
 
 export const WL_PRESETS: WindowLevelPreset[] = [
-  { name: 'Csont', windowCenter: 300, windowWidth: 1500 },
-  { name: 'Lágyrész', windowCenter: 40, windowWidth: 400 },
-  { name: 'Tüdő', windowCenter: -600, windowWidth: 1500 },
-  { name: 'Agy', windowCenter: 40, windowWidth: 80 },
-  { name: 'Fogászat', windowCenter: 500, windowWidth: 3000 },
-  { name: 'Implantátum', windowCenter: 1000, windowWidth: 4000 },
+  { key: 'bone', windowCenter: 300, windowWidth: 1500 },
+  { key: 'soft', windowCenter: 40, windowWidth: 400 },
+  { key: 'lung', windowCenter: -600, windowWidth: 1500 },
+  { key: 'brain', windowCenter: 40, windowWidth: 80 },
+  { key: 'dental', windowCenter: 500, windowWidth: 3000 },
+  { key: 'implant', windowCenter: 1000, windowWidth: 4000 },
 ];
 
 export type ViewportTool =
@@ -57,10 +58,12 @@ export type MPROrientation = 'AXIAL' | 'SAGITTAL' | 'CORONAL';
 
 export type ViewMode = MPROrientation | '3D';
 
-export const ORIENTATION_LABELS: Record<MPROrientation, string> = {
-  AXIAL: 'Axiális',
-  SAGITTAL: 'Szagittális',
-  CORONAL: 'Koronális',
+/** Translation keys per view mode (use with t()) */
+export const VIEW_LABEL_KEYS: Record<ViewMode, string> = {
+  AXIAL: 'view.axial',
+  SAGITTAL: 'view.sagittal',
+  CORONAL: 'view.coronal',
+  '3D': 'view.3d',
 };
 
 // ── Implant planning ──────────────────────────────────────────
@@ -91,9 +94,9 @@ export const IMPLANT_LENGTHS = [6.0, 7.0, 8.0, 8.5, 9.0, 10.0, 11.0, 11.5, 12.0,
 
 export type Volume3DPreset = 'CT-Bone' | 'CT-Bones' | 'CT-Coronary-Arteries-3' | 'CT-MIP';
 
-export const VOLUME_3D_PRESETS: { id: Volume3DPreset; label: string }[] = [
-  { id: 'CT-Bone', label: 'Csont' },
-  { id: 'CT-Bones', label: 'Csont (kontrasztos)' },
-  { id: 'CT-Coronary-Arteries-3', label: 'Fogászat' },
-  { id: 'CT-MIP', label: 'MIP' },
+export const VOLUME_3D_PRESETS: { id: Volume3DPreset; labelKey: string }[] = [
+  { id: 'CT-Bone', labelKey: 'preset3d.bone' },
+  { id: 'CT-Bones', labelKey: 'preset3d.bones' },
+  { id: 'CT-Coronary-Arteries-3', labelKey: 'preset3d.dental' },
+  { id: 'CT-MIP', labelKey: 'preset3d.mip' },
 ];

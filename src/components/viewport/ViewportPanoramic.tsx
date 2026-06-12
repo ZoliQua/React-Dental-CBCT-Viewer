@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { getRenderingEngine, Enums } from '@cornerstonejs/core';
 import { useViewer } from '@/context/ViewerContext';
+import { useI18n } from '@/i18n/I18nContext';
 import { generatePanoramic, type CPRResult } from '@/core/cprEngine';
 import { RENDERING_ENGINE_ID, VP_AXIAL } from '@/core/constants';
 import { ImplantShape } from '@/components/implant/ImplantShape';
@@ -86,6 +87,7 @@ function getContentRect(container: HTMLElement, canvas: HTMLCanvasElement) {
 
 export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: ViewportPanoramicProps) {
   const { state, dispatch } = useViewer();
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const resultRef = useRef<CPRResult | null>(null);
@@ -562,7 +564,7 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
 
       {/* Label */}
       <div className="absolute top-1 left-1/2 -translate-x-1/2 text-yellow-400 text-xs font-mono font-bold pointer-events-none select-none [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
-        Panoráma
+        {t('viewport.panorama')}
       </div>
 
       {/* W/L info */}
@@ -572,7 +574,7 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
 
       {computing && (
         <div className="absolute top-1 right-2 text-dental-400 text-xs font-mono animate-pulse pointer-events-none">
-          Számítás...
+          {t('viewport.computing')}
         </div>
       )}
     </div>

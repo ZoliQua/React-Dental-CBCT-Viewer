@@ -4,6 +4,7 @@
  */
 
 import { useViewer } from '@/context/ViewerContext';
+import { useI18n } from '@/i18n/I18nContext';
 import type { ImplantData } from '@/types/dicom';
 import { IMPLANT_DIAMETERS, IMPLANT_LENGTHS } from '@/types/dicom';
 
@@ -14,6 +15,7 @@ interface ImplantEditPopupProps {
 
 export function ImplantEditPopup({ implantId, onClose }: ImplantEditPopupProps) {
   const { state, dispatch } = useViewer();
+  const { t } = useI18n();
   const implant = state.implants.find(i => i.id === implantId);
 
   if (!implant) return null;
@@ -27,24 +29,24 @@ export function ImplantEditPopup({ implantId, onClose }: ImplantEditPopupProps) 
       {/* Click-away backdrop */}
       <div className="fixed inset-0 z-40" onClick={onClose} />
 
-      <div className="fixed right-72 top-24 z-50 w-64 bg-gray-800 border border-gray-600 rounded-lg shadow-xl p-3 space-y-3">
+      <div className="fixed right-[21rem] top-24 z-50 w-64 bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-600 rounded-lg shadow-xl p-3 space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-bold text-dental-400 select-none">{implant.name}</span>
+          <span className="text-sm font-bold text-dental-600 dark:text-dental-400 select-none">{implant.name}</span>
           <button
             onClick={onClose}
-            className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 rounded"
-            title="Bezárás"
+            className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700 rounded"
+            title={t('implant.close')}
           >
             ✕
           </button>
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-400 w-16 select-none">Átmérő</label>
+          <label className="text-xs text-gray-600 dark:text-gray-400 w-16 select-none">{t('implant.diameter')}</label>
           <select
             value={implant.diameter}
             onChange={(e) => update({ diameter: Number(e.target.value) })}
-            className="flex-1 bg-gray-700 text-gray-300 text-xs rounded px-1 py-1 border border-gray-600"
+            className="flex-1 bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 text-xs rounded px-1 py-1 border"
           >
             {IMPLANT_DIAMETERS.map(d => (
               <option key={d} value={d}>⌀ {d} mm</option>
@@ -53,11 +55,11 @@ export function ImplantEditPopup({ implantId, onClose }: ImplantEditPopupProps) 
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-400 w-16 select-none">Hossz</label>
+          <label className="text-xs text-gray-600 dark:text-gray-400 w-16 select-none">{t('implant.length')}</label>
           <select
             value={implant.length}
             onChange={(e) => update({ length: Number(e.target.value) })}
-            className="flex-1 bg-gray-700 text-gray-300 text-xs rounded px-1 py-1 border border-gray-600"
+            className="flex-1 bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 text-xs rounded px-1 py-1 border"
           >
             {IMPLANT_LENGTHS.map(l => (
               <option key={l} value={l}>{l} mm</option>
@@ -67,10 +69,10 @@ export function ImplantEditPopup({ implantId, onClose }: ImplantEditPopupProps) 
 
         <div>
           <div className="flex items-center justify-between">
-            <label className="text-xs text-gray-400 select-none" title="Bucco-linguális forgatás a keresztmetszet síkjában — ±180°: 0° lefelé (alsó állcsont), ±180° felfelé (felső állcsont)">
-              B-L forgatás
+            <label className="text-xs text-gray-600 dark:text-gray-400 select-none" title={t('implant.blHint')}>
+              {t('implant.blRotation')}
             </label>
-            <span className="text-xs text-gray-300 font-mono">{implant.angleBLDeg}°</span>
+            <span className="text-xs text-gray-700 dark:text-gray-300 font-mono">{implant.angleBLDeg}°</span>
           </div>
           <input
             type="range"
@@ -84,27 +86,27 @@ export function ImplantEditPopup({ implantId, onClose }: ImplantEditPopupProps) 
           <div className="flex gap-1 mt-1">
             <button
               onClick={() => update({ angleBLDeg: 0 })}
-              className="flex-1 px-1 py-0.5 text-[10px] bg-gray-700 text-gray-300 hover:bg-gray-600 rounded"
-              title="Csúcs lefelé"
+              className="flex-1 px-1 py-0.5 text-[10px] bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 rounded"
+              title={t('implant.lowerJaw')}
             >
-              ↓ Alsó állcsont
+              {t('implant.lowerJaw')}
             </button>
             <button
               onClick={() => update({ angleBLDeg: 180 })}
-              className="flex-1 px-1 py-0.5 text-[10px] bg-gray-700 text-gray-300 hover:bg-gray-600 rounded"
-              title="Csúcs felfelé"
+              className="flex-1 px-1 py-0.5 text-[10px] bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 rounded"
+              title={t('implant.upperJaw')}
             >
-              ↑ Felső állcsont
+              {t('implant.upperJaw')}
             </button>
           </div>
         </div>
 
         <div>
           <div className="flex items-center justify-between">
-            <label className="text-xs text-gray-400 select-none" title="Mesio-distális döntés az ív mentén (panoráma síkjában)">
-              M-D döntés
+            <label className="text-xs text-gray-600 dark:text-gray-400 select-none" title={t('implant.mdHint')}>
+              {t('implant.mdTilt')}
             </label>
-            <span className="text-xs text-gray-300 font-mono">{implant.angleMDDeg}°</span>
+            <span className="text-xs text-gray-700 dark:text-gray-300 font-mono">{implant.angleMDDeg}°</span>
           </div>
           <input
             type="range"

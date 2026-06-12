@@ -13,76 +13,9 @@
   <img src="https://img.shields.io/badge/Vitest-tested-6E9F18?style=flat-square&logo=vitest" />
 </p>
 
----
-
-# 🇭🇺 Magyar
-
-## 🦷 React Dental CBCT Viewer
-
-Fogászati CBCT/CT DICOM megjelenítő és implantátum-tervező alkalmazás. Önállóan futtatható, később git submodule-ként integrálható a **DentalQuoteCreator** rendszerbe.
-
-### ✨ Funkciók
-
-| | Funkció | Leírás |
-|---|---------|--------|
-| 📂 | **DICOM betöltés** | Drag & drop fájlimport, sorozat-felismerés, betöltési folyamatjelző |
-| 🖥️ | **2D MPR nézetek** | Axiális, koronális, szagittális síkok valós idejű navigációval |
-| 🎛️ | **Ablak/Szint** | 6 preset (Csont, Lágyrész, Tüdő, Agy, Fogászat, Implantátum) + egérhúzás |
-| 📐 | **Mérőeszközök** | Távolság, szög, ellipszis/kör/téglalap ROI, szabadkézi rajz, HU szonda, nyíl |
-| 🦴 | **Panoráma OPG** | Ívelt síkú rekonstrukció 9 vezérlőpontos CatmullRom görbével |
-| 🔪 | **Keresztmetszet** | Az ívgörbére merőleges szelet, az ív mentén dönthető (±30°) |
-| 🔩 | **3D implantátum tervezés** | Valódi 3D test: minden nézet a saját sík-metszetét mutatja; ±180° forgatás (alsó/felső állcsont), átmérő 3–6 mm, hossz 6–16 mm, húzható a keresztmetszeten és a panorámán |
-| 🗂️ | **Rétegek panel** | Jobbról bekúszó panel: implantátumok és mérések rétegenként — megjelenítés/rejtés, módosítás (pop-up), törlés, átnevezés |
-| 🖼️ | **PNG export** | Panoráma és keresztmetszet mentése képként |
-| ⌨️ | **Billentyűparancsok** | W/L, Pan, Zoom, Scroll, mérőeszközök egy gombnyomásra |
-| 📏 | **Elrendezések** | 1×1, 2×2, 1+3, Panoráma 1×2, Panoráma 2+1 |
-
-### 🛠️ Telepítés és futtatás
-
-```bash
-# Függőségek telepítése
-npm install
-
-# Fejlesztői szerver indítása (port 3340)
-npm run dev
-
-# Tesztek futtatása (Vitest)
-npm test
-
-# Produkciós build
-npm run build
-```
-
-### 📁 Projektstruktúra
-
-```
-src/
-├── components/          # React UI komponensek
-│   ├── layout/          #   Toolbar, ViewerShell
-│   ├── viewport/        #   2D, 3D, MPR, Panoráma, Keresztmetszet
-│   ├── implant/         #   Implantátum overlay-k, alakzat, pop-up szerkesztő
-│   ├── layers/          #   Rétegek panel
-│   ├── panoramic/       #   Ívgörbe szerkesztő
-│   └── tools/           #   Ablak/Szint kezelő
-├── context/             # Globális állapotkezelés (React Context + useReducer)
-├── core/                # DICOM betöltés, CPR + implantátum geometria, eszközkezelő
-├── types/               # TypeScript típusdefiníciók
-├── workers/             # Web Worker DICOM dekódoláshoz
-└── hooks/               # Egyedi React hook-ok
-tests/                   # Vitest tesztek (CPR és implantátum geometria)
-```
-
-### ⌨️ Billentyűparancsok
-
-| Billentyű | Eszköz | | Billentyű | Eszköz |
-|-----------|--------|---|-----------|--------|
-| `W` | Ablak/Szint | | `L` | Távolság |
-| `P` | Mozgatás | | `A` | Szög |
-| `Z` | Nagyítás | | `E` | Ellipszis |
-| `S` | Görgetés | | `C` | Kör |
-| `X` | Szálkereszt | | `R` | Téglalap |
-| `F` | Szabadkézi | | `B` | Kétirányú |
-| `H` | HU szonda | | `N` | Nyíl |
+<p align="center">
+  <b>🌐 <a href="#-english">English</a> · <a href="#-deutsch">Deutsch</a> · <a href="#-español">Español</a> · <a href="#-magyar">Magyar</a></b>
+</p>
 
 ---
 
@@ -104,6 +37,8 @@ Dental CBCT/CT DICOM viewer and implant planning application. Runs standalone an
 | 🔪 | **Cross-Section** | Perpendicular slice to arch curve, tiltable along the arch (±30°) |
 | 🔩 | **3D Implant Planning** | True 3D body: every view renders its own plane intersection; full ±180° rotation (lower/upper jaw), diameter 3–6 mm, length 6–16 mm, draggable on cross-section and panoramic |
 | 🗂️ | **Layers Panel** | Right slide-in panel: implants and measurements as layers — show/hide, edit (pop-up), delete, rename |
+| 🌐 | **4-language UI** | English, German, Spanish and Hungarian with a top-bar language selector |
+| 🌓 | **Dark/light mode** | Theme toggle in the top bar; settings and help slide-in panels |
 | 🖼️ | **PNG Export** | Save panoramic and cross-section images |
 | ⌨️ | **Keyboard Shortcuts** | W/L, Pan, Zoom, Scroll, measurement tools at a keystroke |
 | 📏 | **Layouts** | 1×1, 2×2, 1+3, Panoramic 1×2, Panoramic 2+1 |
@@ -203,6 +138,8 @@ Dentaler CBCT/CT-DICOM-Viewer und Implantatplanungs-Anwendung. Läuft eigenstän
 | 🔪 | **Querschnitt** | Senkrechter Schnitt zur Bogenkurve, entlang des Bogens kippbar (±30°) |
 | 🔩 | **3D-Implantatplanung** | Echter 3D-Körper: jede Ansicht zeigt ihren eigenen Ebenenschnitt; volle ±180°-Rotation (Unter-/Oberkiefer), Durchmesser 3–6 mm, Länge 6–16 mm, verschiebbar im Querschnitt und Panorama |
 | 🗂️ | **Ebenen-Panel** | Rechts einfahrendes Panel: Implantate und Messungen als Ebenen — ein-/ausblenden, bearbeiten (Pop-up), löschen, umbenennen |
+| 🌐 | **4-sprachige UI** | Englisch, Deutsch, Spanisch und Ungarisch mit Sprachauswahl in der oberen Leiste |
+| 🌓 | **Dunkel-/Hellmodus** | Theme-Umschalter in der oberen Leiste; Einstellungs- und Hilfe-Panels |
 | 🖼️ | **PNG-Export** | Panorama- und Querschnittbilder speichern |
 | ⌨️ | **Tastenkürzel** | W/L, Pan, Zoom, Scroll, Messwerkzeuge per Tastendruck |
 | 📏 | **Layouts** | 1×1, 2×2, 1+3, Panorama 1×2, Panorama 2+1 |
@@ -253,6 +190,133 @@ tests/                   # Vitest-Tests (CPR- & Implantat-Geometrie)
 | `X` | Fadenkreuz | | `R` | Rechteck |
 | `F` | Freihand | | `B` | Bidirektional |
 | `H` | HU-Sonde | | `N` | Pfeil |
+
+---
+
+# 🇪🇸 Español
+
+## 🦷 React Dental CBCT Viewer
+
+Visor DICOM de CBCT/CT dental y aplicación de planificación de implantes. Funciona de forma independiente y puede integrarse como submódulo git en el sistema **DentalQuoteCreator**.
+
+### ✨ Funciones
+
+| | Función | Descripción |
+|---|---------|-------------|
+| 📂 | **Carga DICOM** | Importación por arrastrar y soltar, reconocimiento de series, indicador de progreso |
+| 🖥️ | **Vistas MPR 2D** | Planos axial, coronal y sagital con navegación en tiempo real |
+| 🎛️ | **Ventana/Nivel** | 6 preajustes (hueso, tejido blando, pulmón, cerebro, dental, implante) + arrastre |
+| 📐 | **Herramientas de medición** | Distancia, ángulo, ROI de elipse/círculo/rectángulo, mano alzada, sonda HU, flecha |
+| 🦴 | **Panorámica OPG** | Reconstrucción planar curva con spline CatmullRom de 9 puntos |
+| 🔪 | **Corte transversal** | Corte perpendicular al arco, inclinable a lo largo del arco (±30°) |
+| 🔩 | **Planificación 3D de implantes** | Cuerpo 3D real: cada vista muestra su propia intersección; rotación completa ±180° (mandíbula/maxilar), diámetro 3–6 mm, longitud 6–16 mm, arrastrable en el corte y la panorámica |
+| 🗂️ | **Panel de capas** | Panel deslizante derecho: implantes y mediciones como capas — mostrar/ocultar, editar (pop-up), eliminar, renombrar |
+| 🌐 | **Interfaz en 4 idiomas** | Inglés, alemán, español y húngaro con selector de idioma en la barra superior |
+| 🌓 | **Modo oscuro/claro** | Conmutador de tema en la barra superior; paneles de ajustes y ayuda |
+| 🖼️ | **Exportación PNG** | Guardar imágenes panorámicas y de corte |
+| ⌨️ | **Atajos de teclado** | W/L, mover, zoom, desplazar y herramientas de medición con una tecla |
+| 📏 | **Diseños** | 1×1, 2×2, 1+3, Panorámica 1×2, Panorámica 2+1 |
+
+### 🛠️ Instalación y ejecución
+
+```bash
+# Instalar dependencias
+npm install
+
+# Iniciar servidor de desarrollo (puerto 3340)
+npm run dev
+
+# Ejecutar pruebas (Vitest)
+npm test
+
+# Build de producción
+npm run build
+```
+
+### ⌨️ Atajos de teclado
+
+| Tecla | Herramienta | | Tecla | Herramienta |
+|-------|-------------|---|-------|-------------|
+| `W` | Ventana/Nivel | | `L` | Distancia |
+| `P` | Mover | | `A` | Ángulo |
+| `Z` | Zoom | | `E` | Elipse |
+| `S` | Desplazar | | `C` | Círculo |
+| `X` | Cruz | | `R` | Rectángulo |
+| `F` | Mano alzada | | `B` | Bidireccional |
+| `H` | Sonda HU | | `N` | Flecha |
+
+---
+
+# 🇭🇺 Magyar
+
+## 🦷 React Dental CBCT Viewer
+
+Fogászati CBCT/CT DICOM megjelenítő és implantátum-tervező alkalmazás. Önállóan futtatható, később git submodule-ként integrálható a **DentalQuoteCreator** rendszerbe.
+
+### ✨ Funkciók
+
+| | Funkció | Leírás |
+|---|---------|--------|
+| 📂 | **DICOM betöltés** | Drag & drop fájlimport, sorozat-felismerés, betöltési folyamatjelző |
+| 🖥️ | **2D MPR nézetek** | Axiális, koronális, szagittális síkok valós idejű navigációval |
+| 🎛️ | **Ablak/Szint** | 6 preset (Csont, Lágyrész, Tüdő, Agy, Fogászat, Implantátum) + egérhúzás |
+| 📐 | **Mérőeszközök** | Távolság, szög, ellipszis/kör/téglalap ROI, szabadkézi rajz, HU szonda, nyíl |
+| 🦴 | **Panoráma OPG** | Ívelt síkú rekonstrukció 9 vezérlőpontos CatmullRom görbével |
+| 🔪 | **Keresztmetszet** | Az ívgörbére merőleges szelet, az ív mentén dönthető (±30°) |
+| 🔩 | **3D implantátum tervezés** | Valódi 3D test: minden nézet a saját sík-metszetét mutatja; ±180° forgatás (alsó/felső állcsont), átmérő 3–6 mm, hossz 6–16 mm, húzható a keresztmetszeten és a panorámán |
+| 🗂️ | **Rétegek panel** | Jobbról bekúszó panel: implantátumok és mérések rétegenként — megjelenítés/rejtés, módosítás (pop-up), törlés, átnevezés |
+| 🌐 | **4 nyelvű felület** | Angol, német, spanyol és magyar, nyelvválasztóval a felső sorban |
+| 🌓 | **Sötét/világos mód** | Témaváltó a felső sorban; beállítások és súgó bekúszó panelek |
+| 🖼️ | **PNG export** | Panoráma és keresztmetszet mentése képként |
+| ⌨️ | **Billentyűparancsok** | W/L, Pan, Zoom, Scroll, mérőeszközök egy gombnyomásra |
+| 📏 | **Elrendezések** | 1×1, 2×2, 1+3, Panoráma 1×2, Panoráma 2+1 |
+
+### 🛠️ Telepítés és futtatás
+
+```bash
+# Függőségek telepítése
+npm install
+
+# Fejlesztői szerver indítása (port 3340)
+npm run dev
+
+# Tesztek futtatása (Vitest)
+npm test
+
+# Produkciós build
+npm run build
+```
+
+### 📁 Projektstruktúra
+
+```
+src/
+├── components/          # React UI komponensek
+│   ├── layout/          #   Toolbar, ViewerShell
+│   ├── viewport/        #   2D, 3D, MPR, Panoráma, Keresztmetszet
+│   ├── implant/         #   Implantátum overlay-k, alakzat, pop-up szerkesztő
+│   ├── layers/          #   Rétegek panel
+│   ├── panoramic/       #   Ívgörbe szerkesztő
+│   └── tools/           #   Ablak/Szint kezelő
+├── context/             # Globális állapotkezelés (React Context + useReducer)
+├── core/                # DICOM betöltés, CPR + implantátum geometria, eszközkezelő
+├── types/               # TypeScript típusdefiníciók
+├── workers/             # Web Worker DICOM dekódoláshoz
+└── hooks/               # Egyedi React hook-ok
+tests/                   # Vitest tesztek (CPR és implantátum geometria)
+```
+
+### ⌨️ Billentyűparancsok
+
+| Billentyű | Eszköz | | Billentyű | Eszköz |
+|-----------|--------|---|-----------|--------|
+| `W` | Ablak/Szint | | `L` | Távolság |
+| `P` | Mozgatás | | `A` | Szög |
+| `Z` | Nagyítás | | `E` | Ellipszis |
+| `S` | Görgetés | | `C` | Kör |
+| `X` | Szálkereszt | | `R` | Téglalap |
+| `F` | Szabadkézi | | `B` | Kétirányú |
+| `H` | HU szonda | | `N` | Nyíl |
 
 ---
 

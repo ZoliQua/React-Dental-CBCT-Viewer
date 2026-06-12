@@ -3,11 +3,13 @@ import { getRenderingEngine, Enums } from '@cornerstonejs/core';
 import { useViewer } from '@/context/ViewerContext';
 import { setupTools, addViewportToToolGroup } from '@/core/toolManager';
 import { RENDERING_ENGINE_ID, VIEWPORT_ID } from '@/core/constants';
-import { ORIENTATION_LABELS } from '@/types/dicom';
+import { VIEW_LABEL_KEYS } from '@/types/dicom';
+import { useI18n } from '@/i18n/I18nContext';
 import { ViewportOverlay } from './ViewportOverlay';
 import { SliceIndicator } from './SliceIndicator';
 
 export function Viewport2D() {
+  const { t } = useI18n();
   const { state, dispatch } = useViewer();
   const elementRef = useRef<HTMLDivElement>(null);
   const enabledRef = useRef(false);
@@ -134,7 +136,7 @@ export function Viewport2D() {
       <ViewportOverlay />
       {state.viewMode !== '3D' && (
         <div className="absolute top-1 left-1/2 -translate-x-1/2 text-yellow-400 text-xs font-mono font-bold pointer-events-none select-none [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
-          {ORIENTATION_LABELS[state.viewMode]}
+          {t(VIEW_LABEL_KEYS[state.viewMode])}
         </div>
       )}
       {state.totalSlices > 1 && (

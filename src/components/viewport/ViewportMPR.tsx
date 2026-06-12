@@ -2,7 +2,8 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { getRenderingEngine, Enums, setVolumesForViewports, utilities } from '@cornerstonejs/core';
 import { setupTools, addViewportToToolGroup } from '@/core/toolManager';
 import { RENDERING_ENGINE_ID, VP_AXIAL, VP_SAGITTAL, VP_CORONAL } from '@/core/constants';
-import { ORIENTATION_LABELS, type MPROrientation } from '@/types/dicom';
+import { VIEW_LABEL_KEYS, type MPROrientation } from '@/types/dicom';
+import { useI18n } from '@/i18n/I18nContext';
 import { ViewportOverlay } from './ViewportOverlay';
 import { SliceIndicator } from './SliceIndicator';
 
@@ -24,6 +25,7 @@ const ORIENTATION_ENUM: Record<MPROrientation, Enums.OrientationAxis> = {
 };
 
 export function ViewportMPR({ orientation, volumeId }: ViewportMPRProps) {
+  const { t } = useI18n();
   const elementRef = useRef<HTMLDivElement>(null);
   const enabledRef = useRef(false);
   const destroyedRef = useRef(false);
@@ -151,7 +153,7 @@ export function ViewportMPR({ orientation, volumeId }: ViewportMPRProps) {
       <ViewportOverlay sliceIndex={sliceIndex} totalSlices={totalSlices} />
       {/* Orientation label */}
       <div className="absolute top-1 left-1/2 -translate-x-1/2 text-yellow-400 text-xs font-mono font-bold pointer-events-none select-none [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
-        {ORIENTATION_LABELS[orientation]}
+        {t(VIEW_LABEL_KEYS[orientation])}
       </div>
       {totalSlices > 1 && (
         <SliceIndicator

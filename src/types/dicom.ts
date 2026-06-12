@@ -89,6 +89,24 @@ export interface ImplantData {
   angleMDDeg: number;
 }
 
+/** One measurement shown as its own layer in the layers panel */
+export interface MeasurementLayer {
+  /** Cornerstone annotationUID or generated id for canvas measurements */
+  id: string;
+  /** 'annotation' = Cornerstone tool on MPR views; 'canvas' = drawn on panoramic/cross-section */
+  kind: 'annotation' | 'canvas';
+  /** Tool key suffix for tool.<key> translation */
+  tool: string;
+  name: string;
+  visible: boolean;
+  /** Canvas measurements: which custom viewport they belong to */
+  viewport?: 'panoramic' | 'crossSection';
+  /** Canvas measurements: points in normalized image coords (0-1) */
+  points?: [number, number][];
+  /** Formatted measured value (mm, °, HU) */
+  value?: string;
+}
+
 export const IMPLANT_DIAMETERS = [3.0, 3.3, 3.5, 3.75, 4.0, 4.2, 4.5, 5.0, 5.5, 6.0];
 export const IMPLANT_LENGTHS = [6.0, 7.0, 8.0, 8.5, 9.0, 10.0, 11.0, 11.5, 12.0, 13.0, 14.0, 15.0, 16.0];
 

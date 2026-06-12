@@ -1,11 +1,13 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { getRenderingEngine, Enums } from '@cornerstonejs/core';
 import { useViewer } from '@/context/ViewerContext';
+import { CanvasMeasurementOverlay } from '@/components/measurements/CanvasMeasurementOverlay';
 import { useI18n } from '@/i18n/I18nContext';
 import { generatePanoramic, type CPRResult } from '@/core/cprEngine';
 import { RENDERING_ENGINE_ID, VP_AXIAL } from '@/core/constants';
 import { ImplantShape } from '@/components/implant/ImplantShape';
 import { nearestArchFrame, archFrameAt, implantAxis } from '@/core/implantGeometry';
+import { isMeasureTool } from '@/components/measurements/CanvasMeasurementOverlay';
 
 interface ViewportPanoramicProps {
   volumeId: string;
@@ -473,7 +475,7 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
               angleDeg={angle}
               active={state.activeImplantId === imp.id}
               opacity={opacity}
-              interactive
+              interactive={!isMeasureTool(state.activeTool)}
               onPointerDown={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
@@ -507,6 +509,25 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
         className="w-full h-full"
         style={{ objectFit: 'contain', imageRendering: 'auto' }}
       />
+
+      {/* Measurement drawing & display */}
+      <CanvasMeasurementOverlay
+        containerRef={containerRef}
+        canvasRef={canvasRef}
+        viewport="panoramic"
+        getExtentMm={() => {
+          const r = resultRef.current;
+          return r ? [r.width * r.horizontalSpacing, r.height * r.verticalSpacing] : null;
+        }}
+        sampleHU={(u, v) => {
+          const r = resultRef.current;
+          if (!r) return null;
+          const ix = Math.round(u * (r.width - 1));
+          const iy = Math.round(v * (r.height - 1));
+          return r.pixelData[iy * r.width + ix];
+        }}
+      />
+
 
       {/* Horizontal Z indicator line */}
       {hLineTop !== null && (

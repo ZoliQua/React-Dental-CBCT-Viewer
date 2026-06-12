@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { getRenderingEngine, Enums } from '@cornerstonejs/core';
 import { useViewer } from '@/context/ViewerContext';
+import { CanvasMeasurementOverlay } from '@/components/measurements/CanvasMeasurementOverlay';
 import { useI18n } from '@/i18n/I18nContext';
 import { generateCrossSection, type CrossSectionResult } from '@/core/cprEngine';
 import { RENDERING_ENGINE_ID, VP_AXIAL } from '@/core/constants';
@@ -284,6 +285,25 @@ export function ViewportCrossSection({ volumeId }: ViewportCrossSectionProps) {
         className="w-full h-full"
         style={{ objectFit: 'contain', imageRendering: 'auto' }}
       />
+
+      {/* Measurement drawing & display */}
+      <CanvasMeasurementOverlay
+        containerRef={containerRef}
+        canvasRef={canvasRef}
+        viewport="crossSection"
+        getExtentMm={() => {
+          const r = resultRef.current;
+          return r ? [r.width * r.horizontalSpacing, r.height * r.verticalSpacing] : null;
+        }}
+        sampleHU={(u, v) => {
+          const r = resultRef.current;
+          if (!r) return null;
+          const ix = Math.round(u * (r.width - 1));
+          const iy = Math.round(v * (r.height - 1));
+          return r.pixelData[iy * r.width + ix];
+        }}
+      />
+
 
       {/* Axial Z indicator line */}
       {lineTop !== null && (

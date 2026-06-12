@@ -14,6 +14,7 @@ import { useViewer } from '@/context/ViewerContext';
 import { useI18n } from '@/i18n/I18nContext';
 import type { ImplantData } from '@/types/dicom';
 import { ImplantShape } from './ImplantShape';
+import { isMeasureTool } from '@/components/measurements/CanvasMeasurementOverlay';
 import { crossSectionFrame } from '@/core/cprMath';
 import {
   nearestArchFrame,
@@ -242,7 +243,9 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
   // ── Render plane intersections ──────────────────────────────
 
   const controlPoints = state.archCurveControlPoints;
-  const svgInteractive = state.implantPlacementMode || state.implants.length > 0;
+  // While a measurement tool is active, let clicks reach the measurement overlay
+  const measuring = isMeasureTool(state.activeTool);
+  const svgInteractive = !measuring && (state.implantPlacementMode || state.implants.length > 0);
 
   return (
     <svg
@@ -307,7 +310,7 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
               angleDeg={imgAngle}
               active={isActive}
               opacity={ghostOpacity}
-              interactive
+              interactive={!measuring}
               onPointerDown={(e) => handleImplantPointerDown(e, imp)}
             />
             {/* What the current plane actually cuts */}
@@ -334,7 +337,7 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
               </text>
             )}
             {/* Apex rotation handle — full 360° */}
-            {isActive && apexPx && (
+            {isActive && !measuring && apexPx && (
               <circle
                 cx={apexPx[0]}
                 cy={apexPx[1]}

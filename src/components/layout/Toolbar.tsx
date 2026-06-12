@@ -1,12 +1,10 @@
 import { useViewer } from '@/context/ViewerContext';
 import { useI18n } from '@/i18n/I18nContext';
 import { setActiveTool } from '@/core/toolManager';
-import { generateDefaultArchCurve } from '@/core/archCurve';
-import { cache } from '@cornerstonejs/core';
-import type { ViewportTool, LayoutMode, ViewMode, ProjectionMode } from '@/types/dicom';
-import { VIEW_LABEL_KEYS } from '@/types/dicom';
+import { TOOL_ICONS } from './toolIcons';
+import type { ViewportTool, ProjectionMode } from '@/types/dicom';
 
-const tools: { id: ViewportTool; labelKey: string; shortcut: string }[] = [
+const navTools: { id: ViewportTool; labelKey: string; shortcut: string }[] = [
   { id: 'windowLevel', labelKey: 'tool.windowLevel', shortcut: 'W' },
   { id: 'pan', labelKey: 'tool.pan', shortcut: 'P' },
   { id: 'zoom', labelKey: 'tool.zoom', shortcut: 'Z' },
@@ -28,38 +26,48 @@ const measureTools: { id: ViewportTool; labelKey: string; shortcut: string }[] =
   { id: 'arrowAnnotate', labelKey: 'tool.arrow', shortcut: 'N' },
 ];
 
-const viewModes: ViewMode[] = ['AXIAL', 'SAGITTAL', 'CORONAL', '3D'];
-
-const layouts: { id: LayoutMode; label: string }[] = [
-  { id: '1x1', label: '1×1' },
-  { id: '2x2', label: '2×2' },
-  { id: '1+3', label: '1+3' },
-  { id: 'OPG', label: 'Pan 1×2' },
-  { id: 'OPG2+1', label: 'Pan 2+1' },
-];
-
 const BTN_BASE = 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600';
 const BTN_ACTIVE = 'bg-dental-600 text-white';
 const BTN_DISABLED = 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500 cursor-not-allowed';
 
-function ToolButton({
+function GroupLabel({ text }: { text: string }) {
+  return (
+    <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 select-none whitespace-nowrap">
+      {text}
+    </span>
+  );
+}
+
+function IconToolButton({
+  iconKey,
   label,
   shortcut,
   isActive,
+  disabled = false,
+  disabledTitle,
   onClick,
 }: {
+  iconKey: string;
   label: string;
   shortcut: string;
   isActive: boolean;
+  disabled?: boolean;
+  disabledTitle?: string;
   onClick: () => void;
 }) {
+  const Icon = TOOL_ICONS[iconKey];
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1.5 text-sm rounded transition-colors ${isActive ? BTN_ACTIVE : BTN_BASE}`}
-      title={`${label} (${shortcut})`}
+      disabled={disabled}
+      className={`
+        flex items-center gap-1.5 px-2 py-1.5 text-xs rounded transition-colors
+        ${disabled ? BTN_DISABLED : isActive ? BTN_ACTIVE : BTN_BASE}
+      `}
+      title={disabled && disabledTitle ? disabledTitle : `${label} (${shortcut})`}
     >
-      {label}
+      {Icon && <Icon />}
+      <span>{label}</span>
     </button>
   );
 }
@@ -73,100 +81,44 @@ export function Toolbar() {
     dispatch({ type: 'SET_ACTIVE_TOOL', payload: tool });
   };
 
-  const handleViewModeChange = (mode: ViewMode) => {
-    dispatch({ type: 'SET_VIEW_MODE', payload: mode });
-  };
-
-  const handleLayoutChange = (layout: LayoutMode) => {
-    dispatch({ type: 'SET_LAYOUT_MODE', payload: layout });
-
-    if (layout === 'OPG' || layout === 'OPG2+1') {
-      // Initialize default arch curve if not yet drawn
-      if (!state.archCurveControlPoints && state.volumeId) {
-        const volume = cache.getVolume(state.volumeId);
-        if (volume) {
-          const o = volume.origin as [number, number, number];
-          const d = volume.dimensions as [number, number, number];
-          const s = volume.spacing as [number, number, number];
-          const center: [number, number] = [
-            o[0] + (d[0] * s[0]) / 2,
-            o[1] + (d[1] * s[1]) / 2,
-          ];
-          const size: [number, number] = [d[0] * s[0], d[1] * s[1]];
-          dispatch({ type: 'SET_ARCH_CURVE', payload: generateDefaultArchCurve(center, size) });
-        }
-      }
-      // W/L is the default tool in OPG mode
-      setActiveTool('windowLevel');
-      dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'windowLevel' });
-    } else if (layout === '2x2' || layout === '1+3') {
-      // Auto-activate crosshairs in multi-view mode (slight delay for viewports to mount)
-      setTimeout(() => {
-        setActiveTool('crosshairs');
-        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'crosshairs' });
-      }, 150);
-    } else if (state.activeTool === 'crosshairs') {
-      // Switch back to W/L when going to 1x1
-      setActiveTool('windowLevel');
-      dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'windowLevel' });
-    }
-  };
-
-  const handleReset = () => {
-    dispatch({ type: 'RESET' });
-  };
-
-  const handleExportCanvas = (selector: string, filename: string) => {
-    const canvas = document.querySelector(selector) as HTMLCanvasElement | null;
-    if (!canvas) return;
-    const link = document.createElement('a');
-    link.download = filename;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  };
-
   const isMPRMultiView = state.layoutMode === '2x2' || state.layoutMode === '1+3';
   const isOPG = state.layoutMode === 'OPG' || state.layoutMode === 'OPG2+1';
-  const isMultiView = isMPRMultiView || isOPG;
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2 bg-gray-100 border-b border-gray-300 dark:bg-gray-800 dark:border-gray-700 flex-wrap">
+    <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 border-b border-gray-300 dark:bg-gray-800 dark:border-gray-700 flex-wrap">
       {/* Navigation tools */}
+      <GroupLabel text={t('toolbar.view')} />
       <div className="flex gap-1">
-        {tools.map((tool) => (
-          <ToolButton
+        {navTools.map((tool) => (
+          <IconToolButton
             key={tool.id}
+            iconKey={tool.id}
             label={t(tool.labelKey)}
             shortcut={tool.shortcut}
             isActive={state.activeTool === tool.id}
             onClick={() => handleToolChange(tool.id)}
           />
         ))}
-        {/* Crosshairs — only in multi-view */}
-        <button
-          onClick={() => handleToolChange(crosshairTool.id)}
+        <IconToolButton
+          iconKey="crosshairs"
+          label={t(crosshairTool.labelKey)}
+          shortcut={crosshairTool.shortcut}
+          isActive={state.activeTool === 'crosshairs'}
           disabled={!isMPRMultiView}
-          className={`
-            px-3 py-1.5 text-sm rounded transition-colors
-            ${!isMPRMultiView ? BTN_DISABLED : state.activeTool === 'crosshairs' ? BTN_ACTIVE : BTN_BASE}
-          `}
-          title={
-            !isMPRMultiView
-              ? t('toolbar.crosshairsOnlyMulti')
-              : `${t(crosshairTool.labelKey)} (${crosshairTool.shortcut})`
-          }
-        >
-          {t(crosshairTool.labelKey)}
-        </button>
+          disabledTitle={t('toolbar.crosshairsOnlyMulti')}
+          onClick={() => handleToolChange(crosshairTool.id)}
+        />
       </div>
 
       <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
 
-      {/* Measurement tools */}
-      <div className="flex gap-1">
+      {/* Measurement tools — usable on MPR, panoramic and cross-section views */}
+      <GroupLabel text={t('toolbar.tools')} />
+      <div className="flex gap-1 flex-wrap">
         {measureTools.map((tool) => (
-          <ToolButton
+          <IconToolButton
             key={tool.id}
+            iconKey={tool.labelKey.replace('tool.', '')}
             label={t(tool.labelKey)}
             shortcut={tool.shortcut}
             isActive={state.activeTool === tool.id}
@@ -175,52 +127,8 @@ export function Toolbar() {
         ))}
       </div>
 
-      {/* View mode (orientation + 3D) — only clickable in 1x1 */}
-      {state.study && (
-        <>
-          <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
-          <div className="flex gap-1">
-            {viewModes.map((v) => (
-              <button
-                key={v}
-                onClick={() => handleViewModeChange(v)}
-                disabled={isMultiView}
-                className={`
-                  px-2 py-1.5 text-xs rounded transition-colors
-                  ${isMultiView ? BTN_DISABLED : state.viewMode === v ? BTN_ACTIVE : BTN_BASE}
-                `}
-                title={isMultiView ? t('toolbar.multiviewAllVisible') : t(VIEW_LABEL_KEYS[v])}
-              >
-                {t(VIEW_LABEL_KEYS[v])}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-
-      <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
-
-      {/* Layout switcher */}
-      {state.study && (
-        <div className="flex gap-1">
-          {layouts.map((l) => (
-            <button
-              key={l.id}
-              onClick={() => handleLayoutChange(l.id)}
-              className={`
-                px-2 py-1.5 text-xs rounded font-mono transition-colors
-                ${state.layoutMode === l.id ? BTN_ACTIVE : BTN_BASE}
-              `}
-              title={t('toolbar.layout', { label: l.label })}
-            >
-              {l.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Panoramic OPG controls — visible in OPG layout */}
-      {state.study && (state.layoutMode === 'OPG' || state.layoutMode === 'OPG2+1') && (
+      {/* Panoramic OPG controls — visible in OPG layouts */}
+      {state.study && isOPG && (
         <>
           <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
           <div className="flex items-center gap-2">
@@ -266,37 +174,17 @@ export function Toolbar() {
               <option value={5.0}>5.0 mm</option>
             </select>
           </div>
-          <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
-          <button
-            onClick={() => handleExportCanvas('[data-panoramic-canvas]', `panorama_${Date.now()}.png`)}
-            className={`px-2 py-1 text-xs rounded transition-colors ${BTN_BASE} hover:!bg-dental-600 hover:!text-white`}
-            title={t('opg.savePng')}
-          >
-            {t('opg.savePng')}
-          </button>
           {state.layoutMode === 'OPG2+1' && (
             <button
-              onClick={() => handleExportCanvas('[data-crosssection-canvas]', `crosssection_${Date.now()}.png`)}
-              className={`px-2 py-1 text-xs rounded transition-colors ${BTN_BASE} hover:!bg-dental-600 hover:!text-white`}
-              title={t('opg.sectionPng')}
+              onClick={() => dispatch({ type: 'SET_IMPLANT_PLACEMENT_MODE', payload: !state.implantPlacementMode })}
+              className={`
+                px-2 py-1 text-xs rounded transition-colors
+                ${state.implantPlacementMode ? BTN_ACTIVE : BTN_BASE}
+              `}
+              title={t('opg.addImplantTitle')}
             >
-              {t('opg.sectionPng')}
+              {t('opg.addImplant')}
             </button>
-          )}
-          {state.layoutMode === 'OPG2+1' && (
-            <>
-              <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
-              <button
-                onClick={() => dispatch({ type: 'SET_IMPLANT_PLACEMENT_MODE', payload: !state.implantPlacementMode })}
-                className={`
-                  px-2 py-1 text-xs rounded transition-colors
-                  ${state.implantPlacementMode ? BTN_ACTIVE : BTN_BASE}
-                `}
-                title={t('opg.addImplantTitle')}
-              >
-                {t('opg.addImplant')}
-              </button>
-            </>
           )}
         </>
       )}
@@ -321,7 +209,7 @@ export function Toolbar() {
       {/* Reset */}
       {state.study && (
         <button
-          onClick={handleReset}
+          onClick={() => dispatch({ type: 'RESET' })}
           className={`px-3 py-1.5 text-sm rounded transition-colors ${BTN_BASE} hover:!bg-red-700 hover:!text-white`}
         >
           {t('toolbar.reload')}

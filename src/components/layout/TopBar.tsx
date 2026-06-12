@@ -9,6 +9,19 @@ import { useViewer } from '@/context/ViewerContext';
 import { useI18n } from '@/i18n/I18nContext';
 import { useTheme } from '@/context/ThemeContext';
 import { LANGUAGES } from '@/i18n/translations';
+import { useLayoutSwitch } from '@/hooks/useLayoutSwitch';
+import { exportViewPdf } from '@/core/pdfExport';
+import { VIEW_LABEL_KEYS, type LayoutMode, type ViewMode } from '@/types/dicom';
+
+const LAYOUTS: { id: LayoutMode; labelKey?: string; label?: string }[] = [
+  { id: '1x1', label: '1×1' },
+  { id: '2x2', label: '2×2' },
+  { id: '1+3', label: '1+3' },
+  { id: 'OPG', label: 'Pan 1×2' },
+  { id: 'OPG2+1', labelKey: 'viewport.crossSection' },
+];
+
+const VIEW_MODES: ViewMode[] = ['AXIAL', 'SAGITTAL', 'CORONAL', '3D'];
 
 // ── Icons ──────────────────────────────────────────────────────
 
@@ -61,6 +74,16 @@ function HelpIcon() {
   );
 }
 
+function DownloadIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
 function TopBarButton({
   title, active = false, onClick, children,
 }: {
@@ -91,8 +114,33 @@ export function TopBar() {
   const { state, dispatch } = useViewer();
   const { lang, setLang, t } = useI18n();
   const { theme, toggleTheme } = useTheme();
+  const handleLayoutChange = useLayoutSwitch();
   const [langOpen, setLangOpen] = useState(false);
   const langRef = useRef<HTMLDivElement>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportRef = useRef<HTMLDivElement>(null);
+
+  // Close the export dropdown on outside click
+  useEffect(() => {
+    if (!exportOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
+        setExportOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handler);
+    return () => window.removeEventListener('mousedown', handler);
+  }, [exportOpen]);
+
+  const exportCanvas = (selector: string, filename: string) => {
+    const canvas = document.querySelector(selector) as HTMLCanvasElement | null;
+    if (!canvas) return;
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    setExportOpen(false);
+  };
 
   // Close the language dropdown on outside click
   useEffect(() => {
@@ -115,7 +163,89 @@ export function TopBar() {
         <span className="text-sm font-semibold text-dental-600 dark:text-dental-400">{t('app.title')}</span>
       </div>
 
+      {/* Center: layout switcher (+ view modes in 1x1) */}
+      {state.study && (
+        <div className="flex items-center gap-1">
+          {LAYOUTS.map(l => (
+            <button
+              key={l.id}
+              onClick={() => handleLayoutChange(l.id)}
+              className={`
+                px-2 py-1 text-xs rounded font-mono transition-colors
+                ${state.layoutMode === l.id
+                  ? 'bg-dental-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'}
+              `}
+              title={t('toolbar.layout', { label: l.labelKey ? t(l.labelKey) : l.label! })}
+            >
+              {l.labelKey ? t(l.labelKey) : l.label}
+            </button>
+          ))}
+          {state.layoutMode === '1x1' && (
+            <>
+              <div className="w-px h-5 mx-1 bg-gray-300 dark:bg-gray-600" />
+              {VIEW_MODES.map(v => (
+                <button
+                  key={v}
+                  onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: v })}
+                  className={`
+                    px-2 py-1 text-xs rounded transition-colors
+                    ${state.viewMode === v
+                      ? 'bg-dental-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'}
+                  `}
+                  title={t(VIEW_LABEL_KEYS[v])}
+                >
+                  {t(VIEW_LABEL_KEYS[v])}
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center gap-1">
+        {/* Export dropdown */}
+        {state.study && (
+          <div className="relative" ref={exportRef}>
+            <button
+              onClick={() => setExportOpen(o => !o)}
+              title={t('export.button')}
+              className="h-8 px-2 flex items-center gap-1.5 rounded text-gray-600 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
+            >
+              <DownloadIcon />
+              <span className="text-xs">{t('export.button')}</span>
+            </button>
+            {exportOpen && (
+              <div className="absolute right-0 top-9 z-50 w-44 bg-white border border-gray-300 rounded-lg shadow-xl py-1 dark:bg-gray-800 dark:border-gray-600">
+                <button
+                  onClick={() => exportCanvas('[data-panoramic-canvas]', `panorama_${Date.now()}.png`)}
+                  disabled={state.layoutMode !== 'OPG' && state.layoutMode !== 'OPG2+1'}
+                  className="w-full px-3 py-1.5 text-xs text-left text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 disabled:text-gray-400 dark:disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
+                >
+                  {t('opg.savePng')}
+                </button>
+                <button
+                  onClick={() => exportCanvas('[data-crosssection-canvas]', `crosssection_${Date.now()}.png`)}
+                  disabled={state.layoutMode !== 'OPG2+1'}
+                  className="w-full px-3 py-1.5 text-xs text-left text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 disabled:text-gray-400 dark:disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
+                >
+                  {t('opg.sectionPng')}
+                </button>
+                <button
+                  onClick={() => {
+                    exportViewPdf({ t, study: state.study, implants: state.implants, measurements: state.measurements, lang });
+                    setExportOpen(false);
+                  }}
+                  className="w-full px-3 py-1.5 text-xs text-left text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
+                >
+                  {t('export.savePdf')}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Language selector */}
         <div className="relative" ref={langRef}>
           <button

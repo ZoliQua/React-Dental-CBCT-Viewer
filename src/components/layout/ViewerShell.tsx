@@ -1,16 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
-import { RenderingEngine } from '@cornerstonejs/core';
+import { RenderingEngine, eventTarget } from '@cornerstonejs/core';
+import { Enums as csToolsEnums } from '@cornerstonejs/tools';
 import { Toolbar } from './Toolbar';
 import { SeriesList } from '@/components/dicom/SeriesList';
 import { ViewportGrid } from '@/components/viewport/ViewportGrid';
 import { LayersPanel } from '@/components/layers/LayersPanel';
 import { useViewer } from '@/context/ViewerContext';
+import { useI18n } from '@/i18n/I18nContext';
 import { setupTools } from '@/core/toolManager';
 import { createVolume } from '@/core/volumeBuilder';
+import { CS_TOOL_KEYS } from '@/core/annotationLayer';
 import { RENDERING_ENGINE_ID } from '@/core/constants';
 
 export function ViewerShell() {
   const { state, dispatch } = useViewer();
+  const { t } = useI18n();
+  const measurementsRef = useRef(state.measurements);
+  measurementsRef.current = state.measurements;
   const hasSeries = state.study && state.study.series.length > 1;
   const renderingEngineRef = useRef<RenderingEngine | null>(null);
   const buildingVolumeRef = useRef(false);
@@ -31,6 +37,30 @@ export function ViewerShell() {
       setEngineReady(false);
     };
   }, [state.isInitialized]);
+
+  // Every completed Cornerstone measurement becomes its own layer
+  useEffect(() => {
+    const handler = (evt: Event) => {
+      const ann = (evt as CustomEvent).detail?.annotation;
+      const uid = ann?.annotationUID;
+      const toolKey = CS_TOOL_KEYS[ann?.metadata?.toolName as string];
+      if (!uid || !toolKey) return;
+      if (measurementsRef.current.some(m => m.id === uid)) return;
+      const sameTool = measurementsRef.current.filter(m => m.tool === toolKey).length;
+      dispatch({
+        type: 'ADD_MEASUREMENT',
+        payload: {
+          id: uid,
+          kind: 'annotation',
+          tool: toolKey,
+          name: `${t(`tool.${toolKey}`)} ${sameTool + 1}`,
+          visible: true,
+        },
+      });
+    };
+    eventTarget.addEventListener(csToolsEnums.Events.ANNOTATION_COMPLETED, handler);
+    return () => eventTarget.removeEventListener(csToolsEnums.Events.ANNOTATION_COMPLETED, handler);
+  }, [dispatch, t]);
 
   // Build volume for MPR/3D views (always needed since default viewMode is AXIAL)
   const needsVolume = true;

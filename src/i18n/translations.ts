@@ -25,7 +25,7 @@ const en: Dict = {
   'landing.infoBody': 'A dental CBCT/CT DICOM viewer for implant planning: MPR and 3D views, panoramic (OPG) reconstruction along a dental arch curve, perpendicular cross-sections and true-3D implant placement.',
   'landing.howTitle': 'How to use',
   'landing.how1': 'Drop a DICOM folder (or .dcm files) into the box below.',
-  'landing.how2': 'Pick a layout — “Pan 2+1” shows axial + cross-section + panoramic.',
+  'landing.how2': 'Pick a layout — “Cross-section” layout shows axial + cross-section + panoramic.',
   'landing.how3': 'Adjust the red arch curve on the axial view to follow the dental arch.',
   'landing.how4': 'Place implants on the cross-section with “+ Implant”, manage them in the Layers panel.',
   'landing.aboutTitle': 'About',
@@ -146,7 +146,7 @@ const en: Dict = {
   'help.toolsTitle': 'Navigation & measurement tools',
   'help.toolsBody': 'W/L (window/level) drags brightness/contrast; Pan, Zoom and Scroll navigate the slices. Measurement tools: length, angle, ellipse/circle/rectangle ROI, freehand, bidirectional, HU probe and arrow annotation. Each tool has a keyboard shortcut shown in its tooltip.',
   'help.layoutsTitle': 'Layouts',
-  'help.layoutsBody': '1×1 single view, 2×2 axial+sagittal+coronal+3D, 1+3 large axial with three small views. “Pan 1×2” shows the axial with the arch curve plus the panoramic; “Pan 2+1” adds the cross-section view for implant planning.',
+  'help.layoutsBody': '1×1 single view, 2×2 axial+sagittal+coronal+3D, 1+3 large axial with three small views. “Pan 1×2” shows the axial with the arch curve plus the panoramic; the “Cross-section” layout adds the cross-section view for implant planning.',
   'help.panoramicTitle': 'Panoramic (OPG)',
   'help.panoramicBody': 'The panoramic image is reconstructed along the red arch curve drawn on the axial view. Drag the blue control points to fit the dental arch; the slab width and projection (AVG/MIP) are set in the toolbar. The yellow horizontal line is the axial slice; drag it to scroll.',
   'help.crossTitle': 'Cross-section',
@@ -157,6 +157,17 @@ const en: Dict = {
   'help.layersBody': 'The Layers button opens the panel listing every implant and the measurements layer. Each row: show/hide, edit (popup), delete and rename.',
   'help.shortcutsTitle': 'Keyboard shortcuts',
   'help.shortcutsBody': 'W window/level · P pan · Z zoom · S scroll · X crosshairs · L length · A angle · E ellipse · C circle · R rectangle · F freehand · B bidirectional · H HU probe · N arrow',
+
+  // Toolbar groups & export
+  'toolbar.view': 'View:',
+  'toolbar.tools': 'Tools:',
+  'export.button': 'Export',
+  'export.savePdf': 'Save PDF',
+  'pdf.patient': 'Patient',
+  'pdf.date': 'Date',
+  'pdf.implantsTitle': 'Planned implants',
+  'pdf.measurementsTitle': 'Measurements',
+  'pdf.description': 'Implant planning report generated with React Dental CBCT Viewer.',
 };
 
 const de: Dict = {
@@ -169,7 +180,7 @@ const de: Dict = {
   'landing.infoBody': 'Ein dentaler CBCT/CT-DICOM-Viewer für die Implantatplanung: MPR- und 3D-Ansichten, Panorama-Rekonstruktion (OPG) entlang einer Zahnbogenkurve, senkrechte Querschnitte und echte 3D-Implantatplatzierung.',
   'landing.howTitle': 'Bedienung',
   'landing.how1': 'DICOM-Ordner (oder .dcm-Dateien) in das Feld unten ziehen.',
-  'landing.how2': 'Layout wählen — „Pan 2+1“ zeigt Axial + Querschnitt + Panorama.',
+  'landing.how2': 'Layout wählen — Das Layout „Querschnitt“ zeigt Axial + Querschnitt + Panorama.',
   'landing.how3': 'Die rote Bogenkurve in der Axialansicht an den Zahnbogen anpassen.',
   'landing.how4': 'Implantate mit „+ Implantat“ im Querschnitt platzieren, im Ebenen-Panel verwalten.',
   'landing.aboutTitle': 'Über',
@@ -277,7 +288,7 @@ const de: Dict = {
   'help.toolsTitle': 'Navigations- & Messwerkzeuge',
   'help.toolsBody': 'W/L (Fenster/Ebene) regelt Helligkeit/Kontrast per Ziehen; Pan, Zoom und Scroll navigieren durch die Schichten. Messwerkzeuge: Strecke, Winkel, Ellipse/Kreis/Rechteck-ROI, Freihand, bidirektional, HU-Sonde und Pfeil. Jedes Werkzeug hat ein Tastenkürzel (siehe Tooltip).',
   'help.layoutsTitle': 'Layouts',
-  'help.layoutsBody': '1×1 Einzelansicht, 2×2 Axial+Sagittal+Koronal+3D, 1+3 große Axialansicht mit drei kleinen. „Pan 1×2“ zeigt Axial mit Bogenkurve plus Panorama; „Pan 2+1“ ergänzt den Querschnitt für die Implantatplanung.',
+  'help.layoutsBody': '1×1 Einzelansicht, 2×2 Axial+Sagittal+Koronal+3D, 1+3 große Axialansicht mit drei kleinen. „Pan 1×2“ zeigt Axial mit Bogenkurve plus Panorama; das Layout „Querschnitt“ ergänzt den Querschnitt für die Implantatplanung.',
   'help.panoramicTitle': 'Panorama (OPG)',
   'help.panoramicBody': 'Das Panorama wird entlang der roten Bogenkurve der Axialansicht rekonstruiert. Die blauen Kontrollpunkte an den Zahnbogen anpassen; Schichtdicke und Projektion (AVG/MIP) in der Werkzeugleiste. Die gelbe Linie ist die Axialschicht — ziehen zum Blättern.',
   'help.crossTitle': 'Querschnitt',
@@ -288,6 +299,17 @@ const de: Dict = {
   'help.layersBody': 'Der Ebenen-Button öffnet das Panel mit allen Implantaten und der Messungen-Ebene. Pro Zeile: ein-/ausblenden, bearbeiten (Pop-up), löschen, umbenennen.',
   'help.shortcutsTitle': 'Tastenkürzel',
   'help.shortcutsBody': 'W Fenster/Ebene · P Verschieben · Z Zoom · S Scrollen · X Fadenkreuz · L Strecke · A Winkel · E Ellipse · C Kreis · R Rechteck · F Freihand · B Bidirektional · H HU-Sonde · N Pfeil',
+
+  // Toolbar groups & export
+  'toolbar.view': 'Ansicht:',
+  'toolbar.tools': 'Werkzeuge:',
+  'export.button': 'Export',
+  'export.savePdf': 'PDF speichern',
+  'pdf.patient': 'Patient',
+  'pdf.date': 'Datum',
+  'pdf.implantsTitle': 'Geplante Implantate',
+  'pdf.measurementsTitle': 'Messungen',
+  'pdf.description': 'Bericht zur Implantatplanung, erstellt mit React Dental CBCT Viewer.',
 };
 
 const es: Dict = {
@@ -300,7 +322,7 @@ const es: Dict = {
   'landing.infoBody': 'Un visor DICOM de CBCT/CT dental para la planificación de implantes: vistas MPR y 3D, reconstrucción panorámica (OPG) a lo largo de la curva del arco dental, cortes transversales perpendiculares y colocación de implantes en 3D real.',
   'landing.howTitle': 'Cómo se usa',
   'landing.how1': 'Arrastre una carpeta DICOM (o archivos .dcm) al cuadro de abajo.',
-  'landing.how2': 'Elija un diseño — «Pan 2+1» muestra axial + corte transversal + panorámica.',
+  'landing.how2': 'Elija un diseño — el diseño «Corte transversal» muestra axial + corte transversal + panorámica.',
   'landing.how3': 'Ajuste la curva roja del arco en la vista axial para seguir el arco dental.',
   'landing.how4': 'Coloque implantes en el corte transversal con «+ Implante» y gestiónelos en el panel de capas.',
   'landing.aboutTitle': 'Acerca de',
@@ -408,7 +430,7 @@ const es: Dict = {
   'help.toolsTitle': 'Herramientas de navegación y medición',
   'help.toolsBody': 'W/L (ventana/nivel) ajusta brillo/contraste arrastrando; Mover, Zoom y Desplazar navegan por los cortes. Herramientas de medición: distancia, ángulo, ROI de elipse/círculo/rectángulo, mano alzada, bidireccional, sonda HU y flecha. Cada herramienta tiene un atajo de teclado (ver tooltip).',
   'help.layoutsTitle': 'Diseños',
-  'help.layoutsBody': '1×1 vista única, 2×2 axial+sagital+coronal+3D, 1+3 axial grande con tres vistas pequeñas. «Pan 1×2» muestra la axial con la curva del arco más la panorámica; «Pan 2+1» añade el corte transversal para planificar implantes.',
+  'help.layoutsBody': '1×1 vista única, 2×2 axial+sagital+coronal+3D, 1+3 axial grande con tres vistas pequeñas. «Pan 1×2» muestra la axial con la curva del arco más la panorámica; el diseño «Corte transversal» añade el corte transversal para planificar implantes.',
   'help.panoramicTitle': 'Panorámica (OPG)',
   'help.panoramicBody': 'La panorámica se reconstruye a lo largo de la curva roja del arco dibujada en la vista axial. Arrastre los puntos de control azules para ajustarla al arco dental; el grosor y la proyección (AVG/MIP) se configuran en la barra de herramientas. La línea amarilla es el corte axial — arrástrela para desplazarse.',
   'help.crossTitle': 'Corte transversal',
@@ -419,6 +441,17 @@ const es: Dict = {
   'help.layersBody': 'El botón Capas abre el panel con todos los implantes y la capa de mediciones. Por fila: mostrar/ocultar, editar (pop-up), eliminar y renombrar.',
   'help.shortcutsTitle': 'Atajos de teclado',
   'help.shortcutsBody': 'W ventana/nivel · P mover · Z zoom · S desplazar · X cruz · L distancia · A ángulo · E elipse · C círculo · R rectángulo · F mano alzada · B bidireccional · H sonda HU · N flecha',
+
+  // Toolbar groups & export
+  'toolbar.view': 'Vista:',
+  'toolbar.tools': 'Herramientas:',
+  'export.button': 'Exportar',
+  'export.savePdf': 'Guardar PDF',
+  'pdf.patient': 'Paciente',
+  'pdf.date': 'Fecha',
+  'pdf.implantsTitle': 'Implantes planificados',
+  'pdf.measurementsTitle': 'Mediciones',
+  'pdf.description': 'Informe de planificación de implantes generado con React Dental CBCT Viewer.',
 };
 
 const hu: Dict = {
@@ -431,7 +464,7 @@ const hu: Dict = {
   'landing.infoBody': 'Fogászati CBCT/CT DICOM megjelenítő implantátum-tervezéshez: MPR és 3D nézetek, panoráma (OPG) rekonstrukció a fogív-görbe mentén, merőleges keresztmetszetek és valódi 3D implantátum-elhelyezés.',
   'landing.howTitle': 'Használat',
   'landing.how1': 'Húzz egy DICOM mappát (vagy .dcm fájlokat) az alábbi mezőbe.',
-  'landing.how2': 'Válassz elrendezést — a „Pan 2+1” axiális + keresztmetszet + panoráma nézetet ad.',
+  'landing.how2': 'Válassz elrendezést — a „Keresztmetszet” elrendezés axiális + keresztmetszet + panoráma nézetet ad.',
   'landing.how3': 'Igazítsd a piros ívgörbét az axiális nézeten a fogívhez.',
   'landing.how4': 'Helyezz el implantátumokat a keresztmetszeten a „+ Implantátum” gombbal, kezeld őket a Rétegek panelen.',
   'landing.aboutTitle': 'Névjegy',
@@ -539,7 +572,7 @@ const hu: Dict = {
   'help.toolsTitle': 'Navigációs és mérőeszközök',
   'help.toolsBody': 'A W/L (ablak/szint) húzással állítja a fényerőt/kontrasztot; a Mozgatás, Nagyítás és Görgetés a szeletek közt navigál. Mérőeszközök: távolság, szög, ellipszis/kör/téglalap ROI, szabadkézi, kétirányú, HU szonda és nyíl. Minden eszköznek van billentyűparancsa (lásd a tooltipet).',
   'help.layoutsTitle': 'Elrendezések',
-  'help.layoutsBody': '1×1 egyetlen nézet, 2×2 axiális+szagittális+koronális+3D, 1+3 nagy axiális három kis nézettel. A „Pan 1×2” az axiálist mutatja az ívgörbével és a panorámát; a „Pan 2+1” ehhez hozzáadja a keresztmetszetet az implantátum-tervezéshez.',
+  'help.layoutsBody': '1×1 egyetlen nézet, 2×2 axiális+szagittális+koronális+3D, 1+3 nagy axiális három kis nézettel. A „Pan 1×2” az axiálist mutatja az ívgörbével és a panorámát; a „Keresztmetszet” elrendezés ehhez hozzáadja a keresztmetszetet az implantátum-tervezéshez.',
   'help.panoramicTitle': 'Panoráma (OPG)',
   'help.panoramicBody': 'A panorámakép az axiális nézeten rajzolt piros ívgörbe mentén készül. A kék vezérlőpontokat húzva igazítsd a fogívhez; a rétegvastagság és a vetítés (AVG/MIP) az eszköztárban állítható. A sárga vízszintes vonal az axiális szelet — húzd a lapozáshoz.',
   'help.crossTitle': 'Keresztmetszet',
@@ -550,6 +583,17 @@ const hu: Dict = {
   'help.layersBody': 'A Rétegek gomb nyitja a panelt, amely minden implantátumot és a mérések réteget listázza. Soronként: megjelenítés/rejtés, módosítás (pop-up), törlés, átnevezés.',
   'help.shortcutsTitle': 'Billentyűparancsok',
   'help.shortcutsBody': 'W ablak/szint · P mozgatás · Z nagyítás · S görgetés · X szálkereszt · L távolság · A szög · E ellipszis · C kör · R téglalap · F szabadkézi · B kétirányú · H HU szonda · N nyíl',
+
+  // Toolbar groups & export
+  'toolbar.view': 'Nézet:',
+  'toolbar.tools': 'Eszközök:',
+  'export.button': 'Export',
+  'export.savePdf': 'Mentés PDF',
+  'pdf.patient': 'Páciens',
+  'pdf.date': 'Dátum',
+  'pdf.implantsTitle': 'Tervezett implantátumok',
+  'pdf.measurementsTitle': 'Mérések',
+  'pdf.description': 'Implantátum-tervezési riport — React Dental CBCT Viewer.',
 };
 
 export const translations: Record<Language, Dict> = { en, de, es, hu };

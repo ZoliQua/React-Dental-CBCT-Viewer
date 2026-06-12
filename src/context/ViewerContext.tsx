@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, type ReactNode, type Dispatch } from 'react';
-import type { DicomStudyInfo, ViewportTool, LayoutMode, ViewMode, ProjectionMode, ImplantData } from '@/types/dicom';
+import type { DicomStudyInfo, ViewportTool, LayoutMode, ViewMode, ProjectionMode, ImplantData, MeasurementLayer } from '@/types/dicom';
 
 interface ViewerState {
   isInitialized: boolean;
@@ -28,7 +28,8 @@ interface ViewerState {
   implantPlacementMode: boolean;
   // Right-side slide-in panels (one open at a time)
   activePanel: 'layers' | 'settings' | 'help' | null;
-  measurementsVisible: boolean;
+  // Individual measurement layers (Cornerstone annotations + canvas drawings)
+  measurements: MeasurementLayer[];
 }
 
 type ViewerAction =
@@ -56,7 +57,9 @@ type ViewerAction =
   | { type: 'SET_IMPLANT_PLACEMENT_MODE'; payload: boolean }
   | { type: 'SET_ACTIVE_PANEL'; payload: 'layers' | 'settings' | 'help' | null }
   | { type: 'TOGGLE_PANEL'; payload: 'layers' | 'settings' | 'help' }
-  | { type: 'SET_MEASUREMENTS_VISIBLE'; payload: boolean }
+  | { type: 'ADD_MEASUREMENT'; payload: MeasurementLayer }
+  | { type: 'UPDATE_MEASUREMENT'; payload: MeasurementLayer }
+  | { type: 'REMOVE_MEASUREMENT'; payload: string }
   | { type: 'RESET' };
 
 const initialState: ViewerState = {
@@ -82,7 +85,7 @@ const initialState: ViewerState = {
   activeImplantId: null,
   implantPlacementMode: false,
   activePanel: null,
-  measurementsVisible: true,
+  measurements: [],
 };
 
 function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
@@ -141,8 +144,12 @@ function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
       return { ...state, activePanel: action.payload };
     case 'TOGGLE_PANEL':
       return { ...state, activePanel: state.activePanel === action.payload ? null : action.payload };
-    case 'SET_MEASUREMENTS_VISIBLE':
-      return { ...state, measurementsVisible: action.payload };
+    case 'ADD_MEASUREMENT':
+      return { ...state, measurements: [...state.measurements, action.payload] };
+    case 'UPDATE_MEASUREMENT':
+      return { ...state, measurements: state.measurements.map(m => m.id === action.payload.id ? action.payload : m) };
+    case 'REMOVE_MEASUREMENT':
+      return { ...state, measurements: state.measurements.filter(m => m.id !== action.payload) };
     case 'RESET':
       return { ...initialState, isInitialized: state.isInitialized };
     default:

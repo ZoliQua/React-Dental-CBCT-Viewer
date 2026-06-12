@@ -9,7 +9,7 @@ import { useViewer } from '@/context/ViewerContext';
 import { useI18n } from '@/i18n/I18nContext';
 import { ImplantEditPopup } from '@/components/implant/ImplantEditPopup';
 import { SidePanel } from '@/components/panels/SidePanel';
-import { setMeasurementsVisible, clearAllMeasurements } from '@/core/annotationLayer';
+import { setAnnotationVisible, removeAnnotationByUid } from '@/core/annotationLayer';
 
 // ── Tiny inline icons ──────────────────────────────────────────
 
@@ -199,24 +199,29 @@ export function LayersPanel() {
             </div>
           )}
 
-          {/* Measurements layer */}
-          <div className="text-[10px] uppercase tracking-wide text-gray-500 px-1 pt-2 select-none">
-            {t('layers.other')}
-          </div>
-          <LayerRow
-            name={t('layers.measurements')}
-            visible={state.measurementsVisible}
-            onToggleVisible={() => {
-              const next = !state.measurementsVisible;
-              setMeasurementsVisible(next);
-              dispatch({ type: 'SET_MEASUREMENTS_VISIBLE', payload: next });
-            }}
-            onDelete={() => {
-              if (window.confirm(t('layers.confirmClear'))) {
-                clearAllMeasurements();
-              }
-            }}
-          />
+          {/* Measurement layers — one row per measurement */}
+          {state.measurements.length > 0 && (
+            <div className="text-[10px] uppercase tracking-wide text-gray-500 px-1 pt-2 select-none">
+              {t('layers.measurements')}
+            </div>
+          )}
+          {state.measurements.map(m => (
+            <LayerRow
+              key={m.id}
+              name={m.value ? `${m.name} · ${m.value}` : m.name}
+              visible={m.visible}
+              onToggleVisible={() => {
+                const next = !m.visible;
+                if (m.kind === 'annotation') setAnnotationVisible(m.id, next);
+                dispatch({ type: 'UPDATE_MEASUREMENT', payload: { ...m, visible: next } });
+              }}
+              onDelete={() => {
+                if (m.kind === 'annotation') removeAnnotationByUid(m.id);
+                dispatch({ type: 'REMOVE_MEASUREMENT', payload: m.id });
+              }}
+              onRename={(name) => dispatch({ type: 'UPDATE_MEASUREMENT', payload: { ...m, name } })}
+            />
+          ))}
         </div>
       </SidePanel>
 

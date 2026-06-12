@@ -1,6 +1,6 @@
 /**
- * Measurement (Cornerstone annotation) layer helpers: global show/hide and
- * clear, used by the layers panel.
+ * Cornerstone annotation helpers: per-annotation visibility and removal, plus
+ * mapping Cornerstone tool names to our translation tool keys.
  */
 
 import { annotation } from '@cornerstonejs/tools';
@@ -11,20 +11,25 @@ function rerenderAll(): void {
   getRenderingEngine(RENDERING_ENGINE_ID)?.render();
 }
 
-export function setMeasurementsVisible(visible: boolean): void {
-  for (const a of annotation.state.getAllAnnotations()) {
-    if (a.annotationUID) {
-      annotation.visibility.setAnnotationVisibility(a.annotationUID, visible);
-    }
-  }
+export function setAnnotationVisible(annotationUID: string, visible: boolean): void {
+  annotation.visibility.setAnnotationVisibility(annotationUID, visible);
   rerenderAll();
 }
 
-export function clearAllMeasurements(): void {
-  annotation.state.removeAllAnnotations();
+export function removeAnnotationByUid(annotationUID: string): void {
+  annotation.state.removeAnnotation(annotationUID);
   rerenderAll();
 }
 
-export function getMeasurementCount(): number {
-  return annotation.state.getAllAnnotations().length;
-}
+/** Cornerstone toolName → tool.<key> translation key suffix */
+export const CS_TOOL_KEYS: Record<string, string> = {
+  Length: 'length',
+  Angle: 'angle',
+  EllipticalROI: 'ellipse',
+  CircleROI: 'circle',
+  RectangleROI: 'rectangle',
+  PlanarFreehandROI: 'freehand',
+  Bidirectional: 'bidirectional',
+  Probe: 'probe',
+  ArrowAnnotate: 'arrow',
+};

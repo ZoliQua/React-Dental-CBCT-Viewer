@@ -111,6 +111,25 @@ export function implantAxis(frame: ArchFrame, angleBLDeg: number, angleMDDeg: nu
   ];
 }
 
+/**
+ * World entry → apex segment of an implant, resolving its axis from the arch
+ * frame and the two clinical angles. Used by all views and the safety checks.
+ */
+export function implantWorldAxis(
+  controlPoints: Point2[],
+  imp: { position: Vec3; angleBLDeg: number; angleMDDeg: number; length: number },
+): { entry: Vec3; apex: Vec3; axis: Vec3 } | null {
+  const af = nearestArchFrame(controlPoints, [imp.position[0], imp.position[1]]);
+  if (!af) return null;
+  const axis = implantAxis(af, imp.angleBLDeg, imp.angleMDDeg);
+  const apex: Vec3 = [
+    imp.position[0] + axis[0] * imp.length,
+    imp.position[1] + axis[1] * imp.length,
+    imp.position[2] + axis[2] * imp.length,
+  ];
+  return { entry: imp.position, apex, axis };
+}
+
 // ── Silhouette radius profile ──────────────────────────────────
 
 /**
@@ -150,15 +169,16 @@ export function projectToPlane(p: Vec3, frame: PlaneFrame): [number, number, num
 }
 
 /**
- * Intersection strip of the implant body with a (thin) plane, as a closed
- * polygon in plane (u, v) coordinates. Each sample along the axis is treated
- * as a disc of the profile radius; the plane cuts a chord of half-width
- * sqrt(r² − w²) where w is the disc center's distance from the plane.
- * Returns null when the body does not reach the plane.
+ * Intersection strip of a (thin) plane with a cylinder/cone body whose radius
+ * varies along the axis as `radiusFn(t01) · (diameter/2)`. Returned as a closed
+ * polygon in plane (u, v) coordinates: each axis sample is a disc, the plane
+ * cuts a chord of half-width sqrt(r² − w²) where w is the disc center's
+ * distance from the plane. Returns null when the body does not reach the plane.
  */
-export function implantPlaneStrip(
+export function cylinderPlaneStrip(
   body: ImplantBody,
   frame: PlaneFrame,
+  radiusFn: (t01: number) => number = () => 1,
   samples = 24,
 ): [number, number][] | null {
   const n = cross3(frame.eU, frame.eV);
@@ -189,7 +209,7 @@ export function implantPlaneStrip(
   for (let i = 0; i <= samples; i++) {
     const t01 = i / samples;
     const t = t01 * body.length;
-    const r = R * radiusProfile(t01);
+    const r = R * radiusFn(t01);
     const w = w0 + dw * t;
     const hwSq = r * r - w * w;
     const hw = hwSq > 0 ? Math.sqrt(hwSq) : 0;
@@ -203,4 +223,66 @@ export function implantPlaneStrip(
 
   if (!anyVisible) return null;
   return [...left, ...right.reverse()];
+}
+
+/**
+ * Intersection strip of the implant body with a plane (uses the threaded
+ * silhouette radius profile). Thin wrapper over {@link cylinderPlaneStrip}.
+ */
+export function implantPlaneStrip(
+  body: ImplantBody,
+  frame: PlaneFrame,
+  samples = 24,
+): [number, number][] | null {
+  return cylinderPlaneStrip(body, frame, radiusProfile, samples);
+}
+
+// ── Guided surgery: drill sleeve + osteotomy ───────────────────
+
+export interface SleeveSpec {
+  /** Sleeve working diameter, mm */
+  diameter: number;
+  /** Sleeve bottom → implant platform distance along the axis, mm */
+  offset: number;
+  /** Sleeve (bushing) height, mm */
+  height: number;
+}
+
+/**
+ * The drill sleeve as a constant-radius cylinder coaxial with the implant,
+ * sitting `offset` mm coronal of (above) the platform. Returned as an
+ * {@link ImplantBody} so it can be fed to {@link cylinderPlaneStrip}; sampling
+ * runs from the sleeve top (t=0) down toward the platform (t=height).
+ */
+export function sleeveBody(implant: ImplantBody, sleeve: SleeveSpec): ImplantBody {
+  const back = sleeve.offset + sleeve.height; // distance from platform to sleeve top
+  const top: Vec3 = [
+    implant.entry[0] - implant.axis[0] * back,
+    implant.entry[1] - implant.axis[1] * back,
+    implant.entry[2] - implant.axis[2] * back,
+  ];
+  return { entry: top, axis: implant.axis, diameter: sleeve.diameter, length: sleeve.height };
+}
+
+/**
+ * Osteotomy / drill axis as a world segment, from the sleeve top down to the
+ * planned drill depth (`drillLength` mm apical of the platform).
+ */
+export function drillSegment(
+  implant: ImplantBody,
+  sleeve: SleeveSpec,
+  drillLength: number,
+): [Vec3, Vec3] {
+  const back = sleeve.offset + sleeve.height;
+  const start: Vec3 = [
+    implant.entry[0] - implant.axis[0] * back,
+    implant.entry[1] - implant.axis[1] * back,
+    implant.entry[2] - implant.axis[2] * back,
+  ];
+  const end: Vec3 = [
+    implant.entry[0] + implant.axis[0] * drillLength,
+    implant.entry[1] + implant.axis[1] * drillLength,
+    implant.entry[2] + implant.axis[2] * drillLength,
+  ];
+  return [start, end];
 }

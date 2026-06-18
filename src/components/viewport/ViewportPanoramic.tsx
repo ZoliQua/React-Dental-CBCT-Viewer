@@ -6,8 +6,11 @@ import { useI18n } from '@/i18n/I18nContext';
 import { generatePanoramic, type CPRResult } from '@/core/cprEngine';
 import { RENDERING_ENGINE_ID, VP_AXIAL } from '@/core/constants';
 import { ImplantShape } from '@/components/implant/ImplantShape';
-import { nearestArchFrame, archFrameAt, implantAxis } from '@/core/implantGeometry';
+import { getImplantSystem, ANATOMY_DEFAULTS, type AnatomyMarker } from '@/types/dicom';
+import { nearestArchFrame, archFrameAt, implantAxis, implantWorldAxis } from '@/core/implantGeometry';
+import { evaluateImplant, type ImplantSeg } from '@/core/safety';
 import { isMeasureTool } from '@/components/measurements/CanvasMeasurementOverlay';
+import { ComputingOverlay } from './ComputingOverlay';
 
 interface ViewportPanoramicProps {
   volumeId: string;
@@ -95,10 +98,11 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
   const resultRef = useRef<CPRResult | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [computing, setComputing] = useState(false);
-  const [wc, setWc] = useState(300);
-  const [ww, setWw] = useState(2500);
-  const wcRef = useRef(300);
-  const wwRef = useRef(2500);
+  // Shared window/level (preset buttons + W/L drag all flow through context)
+  const wc = state.windowLevel.wc;
+  const ww = state.windowLevel.ww;
+  const wcRef = useRef(wc);
+  const wwRef = useRef(ww);
 
   // Keep refs in sync for use in debounced callbacks
   wcRef.current = wc;
@@ -121,6 +125,11 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
   const implantsRef = useRef(state.implants);
   implantsRef.current = state.implants;
   const [implantDrag, setImplantDrag] = useState<{ id: string; offsetPx: [number, number] } | null>(null);
+
+  // Anatomy (nerve / sinus) tracing state
+  const anatomyRef = useRef(state.anatomy);
+  anatomyRef.current = state.anatomy;
+  const [anatomyDrag, setAnatomyDrag] = useState<{ id: string; index: number } | null>(null);
 
   // Render current result with current W/L
   const renderCurrent = useCallback(() => {
@@ -393,6 +402,73 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
     };
   }, [implantDrag, state.archCurveControlPoints, containerXToPosition, containerYToZ, dispatch]);
 
+  // ── Anatomy tracing (nerve / sinus) on the panoramic ────────
+  // A click in draw mode appends a world point (arch XY at the click's s,
+  // z from the click's y). Esc / double-click finishes; points are draggable.
+
+  const panoramicWorldFromClient = useCallback((clientX: number, clientY: number): [number, number, number] | null => {
+    const cps = state.archCurveControlPoints;
+    if (!cps) return null;
+    const s = containerXToPosition(clientX);
+    const z = containerYToZ(clientY);
+    if (z === null) return null;
+    const af = archFrameAt(cps, s);
+    if (!af) return null;
+    return [af.point[0], af.point[1], z];
+  }, [state.archCurveControlPoints, containerXToPosition, containerYToZ]);
+
+  const handleAnatomyDraw = useCallback((e: React.PointerEvent) => {
+    if (!state.anatomyDrawMode) return;
+    if (e.target !== e.currentTarget) return; // a point handle was clicked — not a new point
+    e.stopPropagation();
+    const world = panoramicWorldFromClient(e.clientX, e.clientY);
+    if (!world) return;
+    const active = anatomyRef.current.find(a => a.id === state.activeAnatomyId);
+    if (active && active.type === state.anatomyDrawMode) {
+      dispatch({ type: 'UPDATE_ANATOMY', payload: { ...active, points: [...active.points, world] } });
+    } else {
+      const type = state.anatomyDrawMode;
+      const def = ANATOMY_DEFAULTS[type];
+      const n = anatomyRef.current.filter(a => a.type === type).length + 1;
+      const marker: AnatomyMarker = {
+        id: `anat_${Date.now()}`,
+        name: `${t(`anatomy.${type}`)} ${n}`,
+        visible: true,
+        type,
+        color: def.color,
+        radius: def.radius,
+        points: [world],
+      };
+      dispatch({ type: 'ADD_ANATOMY', payload: marker });
+    }
+  }, [state.anatomyDrawMode, state.activeAnatomyId, panoramicWorldFromClient, dispatch, t]);
+
+  useEffect(() => {
+    if (!anatomyDrag) return;
+    const move = (e: PointerEvent) => {
+      const world = panoramicWorldFromClient(e.clientX, e.clientY);
+      if (!world) return;
+      const m = anatomyRef.current.find(a => a.id === anatomyDrag.id);
+      if (!m) return;
+      const pts = m.points.slice();
+      pts[anatomyDrag.index] = world;
+      dispatch({ type: 'UPDATE_ANATOMY', payload: { ...m, points: pts } });
+    };
+    const up = () => setAnatomyDrag(null);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+  }, [anatomyDrag, panoramicWorldFromClient, dispatch]);
+
+  useEffect(() => {
+    if (!state.anatomyDrawMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') dispatch({ type: 'SET_ANATOMY_DRAW_MODE', payload: null });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [state.anatomyDrawMode, dispatch]);
+
   // ── W/L pointer interaction ─────────────────────────────────
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
@@ -403,9 +479,14 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     const d = wlDragRef.current;
     if (!d) return;
-    setWw(Math.max(1, d.startWw + (e.clientX - d.startX) * 5));
-    setWc(d.startWc + (e.clientY - d.startY) * 5);
-  }, []);
+    dispatch({
+      type: 'SET_WINDOW_LEVEL',
+      payload: {
+        ww: Math.max(1, d.startWw + (e.clientX - d.startX) * 5),
+        wc: d.startWc + (e.clientY - d.startY) * 5,
+      },
+    });
+  }, [dispatch]);
 
   const handlePointerUp = useCallback(() => { wlDragRef.current = null; }, []);
 
@@ -444,6 +525,14 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
     const pxPerMm = cr.height / (r.zMax - r.zMin);
     const halfSlab = Math.max(1, state.panoramicSlabWidth / 2);
 
+    const cps = state.archCurveControlPoints;
+    const visAnatomy = state.anatomy.filter(a => a.visible);
+    const thresholds = { nerve: state.safety.nerveMm, sinus: state.safety.sinusMm, neighbor: state.safety.neighborMm };
+    const segs: ImplantSeg[] = state.implants.filter(i => i.visible).flatMap(i => {
+      const wa = implantWorldAxis(cps, i);
+      return wa ? [{ id: i.id, entry: wa.entry, apex: wa.apex, radius: i.diameter / 2 }] : [];
+    });
+
     return (
       <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none', zIndex: 22 }}>
         {state.implants.filter(i => i.visible).map(imp => {
@@ -454,10 +543,19 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
           if (x === null || y === null) return null;
 
           const axis = implantAxis(af, imp.angleBLDeg, imp.angleMDDeg);
-          // Panoramic in-plane axes: arch tangent (horizontal) and Z (vertical)
+          // Panoramic in-plane axes: arch tangent (horizontal, +s → right) and
+          // Z (vertical, +z → up). ImplantShape's local body points down, so the
+          // apex screen direction must equal (aT, −axis[2]) → angle = atan2(−aT, −z).
           const aT = axis[0] * af.tangent[0] + axis[1] * af.tangent[1];
-          const angle = Math.atan2(aT, -axis[2]) * (180 / Math.PI);
+          const angle = Math.atan2(-aT, -axis[2]) * (180 / Math.PI);
           const inPlaneLen = imp.length * Math.hypot(aT, axis[2]);
+
+          // Safety: violation if any anatomy marker or neighbour implant is too close
+          let warn = false;
+          const self = segs.find(s => s.id === imp.id);
+          if (self && (visAnatomy.length || segs.length > 1)) {
+            warn = !evaluateImplant(self, segs, visAnatomy, thresholds).worstOk;
+          }
 
           // Depth fade: buccolingual distance from the arch surface vs slab
           const w0 = (imp.position[0] - af.point[0]) * af.normal[0]
@@ -465,28 +563,133 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
           const over = Math.max(0, Math.abs(w0) - halfSlab);
           const opacity = Math.max(0.15, Math.min(1, 1 - over / halfSlab));
 
+          // Guided: drill sleeve (persely) + osteotomy axis, along the in-plane
+          // implant direction. Apex direction in screen = rotate (0,1) by angle.
+          let guidedEls: React.ReactNode = null;
+          if (imp.guided?.enabled) {
+            const ar = (angle * Math.PI) / 180;
+            const apexDir: [number, number] = [-Math.sin(ar), Math.cos(ar)];
+            const coronal: [number, number] = [Math.sin(ar), -Math.cos(ar)];
+            const { sleeveOffset: off, sleeveHeight: sh, drillLength: dl } = imp.guided;
+            const sleeveDia = getImplantSystem(imp.systemId).sleeveDiameter;
+            const sCx = x + coronal[0] * (off + sh / 2) * pxPerMm;
+            const sCy = y + coronal[1] * (off + sh / 2) * pxPerMm;
+            const topX = x + coronal[0] * (off + sh) * pxPerMm;
+            const topY = y + coronal[1] * (off + sh) * pxPerMm;
+            const tipX = x + apexDir[0] * dl * pxPerMm;
+            const tipY = y + apexDir[1] * dl * pxPerMm;
+            guidedEls = (
+              <g style={{ pointerEvents: 'none' }} opacity={opacity}>
+                <line
+                  x1={topX} y1={topY} x2={tipX} y2={tipY}
+                  stroke="rgba(120, 230, 140, 0.85)" strokeWidth={1} strokeDasharray="4 3"
+                />
+                <rect
+                  x={sCx - (sleeveDia * pxPerMm) / 2}
+                  y={sCy - (sh * pxPerMm) / 2}
+                  width={sleeveDia * pxPerMm}
+                  height={sh * pxPerMm}
+                  transform={`rotate(${angle} ${sCx} ${sCy})`}
+                  fill="rgba(120, 230, 140, 0.18)"
+                  stroke="rgb(120, 230, 140)" strokeWidth={1.5}
+                  rx={1.5}
+                />
+              </g>
+            );
+          }
+
           return (
-            <ImplantShape
-              key={imp.id}
-              x={x}
-              y={y}
-              widthPx={imp.diameter * pxPerMm}
-              heightPx={inPlaneLen * pxPerMm}
-              angleDeg={angle}
-              active={state.activeImplantId === imp.id}
-              opacity={opacity}
-              interactive={!isMeasureTool(state.activeTool)}
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                dispatch({ type: 'SET_ACTIVE_IMPLANT', payload: imp.id });
-                const rect = container.getBoundingClientRect();
-                setImplantDrag({
-                  id: imp.id,
-                  offsetPx: [e.clientX - (rect.left + x), e.clientY - (rect.top + y)],
-                });
-              }}
-            />
+            <g key={imp.id}>
+              {guidedEls}
+              <ImplantShape
+                x={x}
+                y={y}
+                widthPx={imp.diameter * pxPerMm}
+                heightPx={inPlaneLen * pxPerMm}
+                angleDeg={angle}
+                active={state.activeImplantId === imp.id}
+                opacity={opacity}
+                interactive={!isMeasureTool(state.activeTool)}
+                safetyXPx={pxPerMm * state.safety.marginMm}
+                safetyYPx={pxPerMm * state.safety.marginMm}
+                safetyColor={state.safety.color}
+                warn={warn}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  dispatch({ type: 'SET_ACTIVE_IMPLANT', payload: imp.id });
+                  const rect = container.getBoundingClientRect();
+                  setImplantDrag({
+                    id: imp.id,
+                    offsetPx: [e.clientX - (rect.left + x), e.clientY - (rect.top + y)],
+                  });
+                }}
+                onDoubleClick={() => {
+                  dispatch({ type: 'SET_ACTIVE_IMPLANT', payload: imp.id });
+                  dispatch({ type: 'SET_EDITING_IMPLANT', payload: imp.id });
+                }}
+              />
+            </g>
+          );
+        })}
+      </svg>
+    );
+  };
+
+  // Anatomy (nerve / sinus) polylines + safety tube + draggable points
+  const renderAnatomy = () => {
+    if (!state.archCurveControlPoints) return null;
+    const r = resultRef.current;
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!r || !canvas || !container) return null;
+    const cr = getContentRect(container, canvas);
+    const pxPerMm = cr.height / (r.zMax - r.zMin);
+    const drawing = state.anatomyDrawMode !== null;
+    return (
+      <svg
+        className="absolute inset-0 w-full h-full"
+        style={{ pointerEvents: drawing ? 'auto' : 'none', zIndex: 24, cursor: drawing ? 'crosshair' : 'default' }}
+        onPointerDown={handleAnatomyDraw}
+      >
+        {state.anatomy.filter(a => a.visible).map(m => {
+          const pts = m.points
+            .map(p => {
+              const af = nearestArchFrame(state.archCurveControlPoints!, [p[0], p[1]]);
+              if (!af) return null;
+              const px = positionToContainerX(af.s);
+              const py = zToContainerY(p[2]);
+              return px === null || py === null ? null : [px, py] as [number, number];
+            })
+            .filter((p): p is [number, number] => p !== null);
+          if (pts.length === 0) return null;
+          const poly = pts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+          const isActive = state.activeAnatomyId === m.id;
+          return (
+            <g key={m.id}>
+              {pts.length >= 2 && (
+                <polyline points={poly} fill="none" stroke={m.color} strokeOpacity={0.25}
+                  strokeWidth={Math.max(2, m.radius * 2 * pxPerMm)} strokeLinecap="round" strokeLinejoin="round" />
+              )}
+              {pts.length >= 2 && (
+                <polyline points={poly} fill="none" stroke={m.color} strokeWidth={1.5}
+                  strokeLinecap="round" strokeLinejoin="round" />
+              )}
+              {pts.map((p, i) => (
+                <circle
+                  key={i}
+                  cx={p[0]} cy={p[1]} r={isActive ? 4 : 3}
+                  fill={m.color} stroke="white" strokeWidth={1}
+                  style={{ pointerEvents: drawing ? 'none' : 'auto', cursor: 'grab' }}
+                  onPointerDown={(e) => {
+                    if (drawing) return;
+                    e.stopPropagation();
+                    dispatch({ type: 'SET_ACTIVE_ANATOMY', payload: m.id });
+                    setAnatomyDrag({ id: m.id, index: i });
+                  }}
+                />
+              ))}
+            </g>
           );
         })}
       </svg>
@@ -496,6 +699,7 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
   return (
     <div
       ref={containerRef}
+      data-panoramic-view
       className="relative w-full h-full bg-black overflow-hidden select-none"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -580,6 +784,9 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
         </svg>
       )}
 
+      {/* Anatomy markers (nerve / sinus) */}
+      {renderAnatomy()}
+
       {/* Implant projections */}
       {renderImplants()}
 
@@ -593,11 +800,7 @@ export function ViewportPanoramic({ volumeId, showCrossSectionLine = false }: Vi
         WC: {Math.round(wc)} / WW: {Math.round(ww)}
       </div>
 
-      {computing && (
-        <div className="absolute top-1 right-2 text-dental-400 text-xs font-mono animate-pulse pointer-events-none">
-          {t('viewport.computing')}
-        </div>
-      )}
+      <ComputingOverlay show={computing} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, type ReactNode, type Dispatch } from 'react';
-import type { DicomStudyInfo, ViewportTool, LayoutMode, ViewMode, ProjectionMode, ImplantData, MeasurementLayer } from '@/types/dicom';
+import type { DicomStudyInfo, ViewportTool, LayoutMode, ViewMode, ProjectionMode, ImplantData, MeasurementLayer, AnatomyMarker, AnatomyType } from '@/types/dicom';
 
 interface ViewerState {
   isInitialized: boolean;
@@ -26,10 +26,31 @@ interface ViewerState {
   implants: ImplantData[];
   activeImplantId: string | null;
   implantPlacementMode: boolean;
+  /** Implant whose edit popup is open (null = closed) */
+  editingImplantId: string | null;
   // Right-side slide-in panels (one open at a time)
   activePanel: 'layers' | 'settings' | 'help' | null;
+  // Left layers rail expanded?
+  layersOpen: boolean;
+  // Shared window/level (applies to panoramic, cross-section and MPR)
+  windowLevel: { wc: number; ww: number };
+  // Implant safety-margin halo (mm + color) and clearance thresholds (mm)
+  safety: { marginMm: number; color: string; nerveMm: number; sinusMm: number; neighborMm: number };
+  // Anatomy markers (nerve canal, sinus floor) + tracing mode
+  anatomy: AnatomyMarker[];
+  anatomyDrawMode: AnatomyType | null;
+  activeAnatomyId: string | null;
+  // Editable report header fields (shown in the PDF report)
+  report: ReportFields;
   // Individual measurement layers (Cornerstone annotations + canvas drawings)
   measurements: MeasurementLayer[];
+}
+
+export interface ReportFields {
+  patientName: string;
+  patientAge: string;
+  quoteNumber: string;
+  statusDescription: string;
 }
 
 type ViewerAction =
@@ -55,8 +76,18 @@ type ViewerAction =
   | { type: 'REMOVE_IMPLANT'; payload: string }
   | { type: 'SET_ACTIVE_IMPLANT'; payload: string | null }
   | { type: 'SET_IMPLANT_PLACEMENT_MODE'; payload: boolean }
+  | { type: 'SET_EDITING_IMPLANT'; payload: string | null }
   | { type: 'SET_ACTIVE_PANEL'; payload: 'layers' | 'settings' | 'help' | null }
   | { type: 'TOGGLE_PANEL'; payload: 'layers' | 'settings' | 'help' }
+  | { type: 'TOGGLE_LAYERS' }
+  | { type: 'SET_WINDOW_LEVEL'; payload: { wc: number; ww: number } }
+  | { type: 'SET_SAFETY'; payload: Partial<{ marginMm: number; color: string; nerveMm: number; sinusMm: number; neighborMm: number }> }
+  | { type: 'SET_REPORT'; payload: Partial<ReportFields> }
+  | { type: 'ADD_ANATOMY'; payload: AnatomyMarker }
+  | { type: 'UPDATE_ANATOMY'; payload: AnatomyMarker }
+  | { type: 'REMOVE_ANATOMY'; payload: string }
+  | { type: 'SET_ANATOMY_DRAW_MODE'; payload: AnatomyType | null }
+  | { type: 'SET_ACTIVE_ANATOMY'; payload: string | null }
   | { type: 'ADD_MEASUREMENT'; payload: MeasurementLayer }
   | { type: 'UPDATE_MEASUREMENT'; payload: MeasurementLayer }
   | { type: 'REMOVE_MEASUREMENT'; payload: string }
@@ -84,7 +115,15 @@ const initialState: ViewerState = {
   implants: [],
   activeImplantId: null,
   implantPlacementMode: false,
+  editingImplantId: null,
   activePanel: null,
+  layersOpen: false,
+  windowLevel: { wc: 300, ww: 2500 },
+  safety: { marginMm: 1, color: '#ff3c3c', nerveMm: 2, sinusMm: 1, neighborMm: 3 },
+  anatomy: [],
+  anatomyDrawMode: null,
+  activeAnatomyId: null,
+  report: { patientName: '', patientAge: '', quoteNumber: '', statusDescription: '' },
   measurements: [],
 };
 
@@ -131,19 +170,50 @@ function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
     case 'SET_CROSS_SECTION_TILT':
       return { ...state, crossSectionTiltDeg: action.payload };
     case 'ADD_IMPLANT':
-      return { ...state, implants: [...state.implants, action.payload], activeImplantId: action.payload.id, implantPlacementMode: false };
+      // Keep placement mode on so several implants can be dropped in a row;
+      // the user exits with Esc or by toggling the "+ Implant" button.
+      return { ...state, implants: [...state.implants, action.payload], activeImplantId: action.payload.id };
     case 'UPDATE_IMPLANT':
       return { ...state, implants: state.implants.map(imp => imp.id === action.payload.id ? action.payload : imp) };
     case 'REMOVE_IMPLANT':
-      return { ...state, implants: state.implants.filter(imp => imp.id !== action.payload), activeImplantId: state.activeImplantId === action.payload ? null : state.activeImplantId };
+      return {
+        ...state,
+        implants: state.implants.filter(imp => imp.id !== action.payload),
+        activeImplantId: state.activeImplantId === action.payload ? null : state.activeImplantId,
+        editingImplantId: state.editingImplantId === action.payload ? null : state.editingImplantId,
+      };
     case 'SET_ACTIVE_IMPLANT':
       return { ...state, activeImplantId: action.payload };
     case 'SET_IMPLANT_PLACEMENT_MODE':
       return { ...state, implantPlacementMode: action.payload };
+    case 'SET_EDITING_IMPLANT':
+      return { ...state, editingImplantId: action.payload };
     case 'SET_ACTIVE_PANEL':
       return { ...state, activePanel: action.payload };
     case 'TOGGLE_PANEL':
       return { ...state, activePanel: state.activePanel === action.payload ? null : action.payload };
+    case 'TOGGLE_LAYERS':
+      return { ...state, layersOpen: !state.layersOpen };
+    case 'SET_WINDOW_LEVEL':
+      return { ...state, windowLevel: action.payload };
+    case 'SET_SAFETY':
+      return { ...state, safety: { ...state.safety, ...action.payload } };
+    case 'ADD_ANATOMY':
+      return { ...state, anatomy: [...state.anatomy, action.payload], activeAnatomyId: action.payload.id };
+    case 'UPDATE_ANATOMY':
+      return { ...state, anatomy: state.anatomy.map(a => a.id === action.payload.id ? action.payload : a) };
+    case 'REMOVE_ANATOMY':
+      return {
+        ...state,
+        anatomy: state.anatomy.filter(a => a.id !== action.payload),
+        activeAnatomyId: state.activeAnatomyId === action.payload ? null : state.activeAnatomyId,
+      };
+    case 'SET_ANATOMY_DRAW_MODE':
+      return { ...state, anatomyDrawMode: action.payload };
+    case 'SET_ACTIVE_ANATOMY':
+      return { ...state, activeAnatomyId: action.payload };
+    case 'SET_REPORT':
+      return { ...state, report: { ...state.report, ...action.payload } };
     case 'ADD_MEASUREMENT':
       return { ...state, measurements: [...state.measurements, action.payload] };
     case 'UPDATE_MEASUREMENT':

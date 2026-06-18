@@ -8,7 +8,6 @@ import { useState } from 'react';
 import { useViewer } from '@/context/ViewerContext';
 import { useI18n } from '@/i18n/I18nContext';
 import { ImplantEditPopup } from '@/components/implant/ImplantEditPopup';
-import { SidePanel } from '@/components/panels/SidePanel';
 import { setAnnotationVisible, removeAnnotationByUid } from '@/core/annotationLayer';
 
 // ── Tiny inline icons ──────────────────────────────────────────
@@ -47,6 +46,16 @@ function PencilIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+    </svg>
+  );
+}
+
+function StackIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+      <polyline points="2 17 12 22 22 17" />
+      <polyline points="2 12 12 17 22 12" />
     </svg>
   );
 }
@@ -157,17 +166,37 @@ function LayerRow({ name, visible, active = false, onToggleVisible, onEdit, onDe
 export function LayersPanel() {
   const { state, dispatch } = useViewer();
   const { t } = useI18n();
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const editingId = state.editingImplantId;
+  const open = state.layersOpen;
 
   return (
     <>
-      <SidePanel
-        open={state.activePanel === 'layers'}
-        title={t('layers.title')}
-        onClose={() => dispatch({ type: 'SET_ACTIVE_PANEL', payload: null })}
-        closeTitle={t('layers.close')}
-      >
-        <div className="space-y-1">
+      {/* Left rail (always visible) + expandable layers panel */}
+      <div className="absolute left-0 top-0 bottom-0 z-30 flex">
+        <button
+          onClick={() => dispatch({ type: 'TOGGLE_LAYERS' })}
+          title={t('layers.title')}
+          className={`
+            w-9 shrink-0 flex flex-col items-center gap-2 pt-3 border-r transition-colors
+            ${open
+              ? 'bg-dental-600 text-white border-dental-700'
+              : 'bg-white/95 text-gray-600 border-gray-300 hover:bg-gray-100 dark:bg-gray-800/95 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-700'}
+          `}
+        >
+          <StackIcon />
+          <span className="text-[10px] tracking-wide select-none [writing-mode:vertical-rl] rotate-180">
+            {t('layers.title')}
+          </span>
+        </button>
+
+        <div
+          className={`
+            h-full bg-white border-r border-gray-300 shadow-xl overflow-hidden
+            dark:bg-gray-800 dark:border-gray-700 transition-all duration-200
+            ${open ? 'w-72' : 'w-0'}
+          `}
+        >
+          <div className="w-72 h-full overflow-y-auto p-3 space-y-1">
           {/* Implant layers */}
           {state.implants.length > 0 && (
             <div className="text-[10px] uppercase tracking-wide text-gray-500 px-1 pt-1 select-none">
@@ -184,12 +213,9 @@ export function LayersPanel() {
               onToggleVisible={() => dispatch({ type: 'UPDATE_IMPLANT', payload: { ...imp, visible: !imp.visible } })}
               onEdit={() => {
                 dispatch({ type: 'SET_ACTIVE_IMPLANT', payload: imp.id });
-                setEditingId(imp.id);
+                dispatch({ type: 'SET_EDITING_IMPLANT', payload: imp.id });
               }}
-              onDelete={() => {
-                if (editingId === imp.id) setEditingId(null);
-                dispatch({ type: 'REMOVE_IMPLANT', payload: imp.id });
-              }}
+              onDelete={() => dispatch({ type: 'REMOVE_IMPLANT', payload: imp.id })}
               onRename={(name) => dispatch({ type: 'UPDATE_IMPLANT', payload: { ...imp, name } })}
             />
           ))}
@@ -198,6 +224,25 @@ export function LayersPanel() {
               {t('layers.none')}
             </div>
           )}
+
+          {/* Anatomy markers (nerve / sinus) */}
+          {state.anatomy.length > 0 && (
+            <div className="text-[10px] uppercase tracking-wide text-gray-500 px-1 pt-2 select-none">
+              {t('layers.anatomy')}
+            </div>
+          )}
+          {state.anatomy.map(m => (
+            <LayerRow
+              key={m.id}
+              name={`${m.name} · ${m.points.length}p`}
+              visible={m.visible}
+              active={state.activeAnatomyId === m.id}
+              onSelect={() => dispatch({ type: 'SET_ACTIVE_ANATOMY', payload: m.id })}
+              onToggleVisible={() => dispatch({ type: 'UPDATE_ANATOMY', payload: { ...m, visible: !m.visible } })}
+              onDelete={() => dispatch({ type: 'REMOVE_ANATOMY', payload: m.id })}
+              onRename={(name) => dispatch({ type: 'UPDATE_ANATOMY', payload: { ...m, name } })}
+            />
+          ))}
 
           {/* Measurement layers — one row per measurement */}
           {state.measurements.length > 0 && (
@@ -222,12 +267,16 @@ export function LayersPanel() {
               onRename={(name) => dispatch({ type: 'UPDATE_MEASUREMENT', payload: { ...m, name } })}
             />
           ))}
+          </div>
         </div>
-      </SidePanel>
+      </div>
 
-      {/* Edit popup */}
+      {/* Edit popup (opened from a layer row or by double-clicking an implant) */}
       {editingId && (
-        <ImplantEditPopup implantId={editingId} onClose={() => setEditingId(null)} />
+        <ImplantEditPopup
+          implantId={editingId}
+          onClose={() => dispatch({ type: 'SET_EDITING_IMPLANT', payload: null })}
+        />
       )}
     </>
   );

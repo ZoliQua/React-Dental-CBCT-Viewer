@@ -8,6 +8,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { getRenderingEngine, Enums } from '@cornerstonejs/core';
 import { useViewer } from '@/context/ViewerContext';
+import { getImplantSystem } from '@/types/dicom';
 import { RENDERING_ENGINE_ID, VP_AXIAL } from '@/core/constants';
 import { nearestArchFrame, implantAxis, radiusProfile } from '@/core/implantGeometry';
 
@@ -30,7 +31,7 @@ export function ImplantAxialOverlay() {
     return () => el.removeEventListener(Enums.Events.CAMERA_MODIFIED, handler);
   }, [getViewport]);
 
-  if (state.implants.length === 0 || !state.archCurveControlPoints) return null;
+  if ((state.implants.length === 0 && state.anatomy.length === 0) || !state.archCurveControlPoints) return null;
   const vp = getViewport();
   if (!vp) return null;
   const zFocal = vp.getCamera().focalPoint?.[2];
@@ -39,6 +40,28 @@ export function ImplantAxialOverlay() {
   return (
     <div className="absolute inset-0" style={{ zIndex: 11, pointerEvents: 'none' }}>
       <svg className="w-full h-full">
+        {/* Anatomy markers where the polyline crosses this axial slice */}
+        {state.anatomy.filter(a => a.visible && a.points.length >= 2).map(m => {
+          const nodes: React.ReactNode[] = [];
+          for (let i = 0; i < m.points.length - 1; i++) {
+            const p = m.points[i];
+            const q = m.points[i + 1];
+            const dz = q[2] - p[2];
+            if (Math.abs(dz) < 1e-6) continue;
+            const t = (zFocal - p[2]) / dz;
+            if (t < 0 || t > 1) continue;
+            const cx = p[0] + (q[0] - p[0]) * t;
+            const cy = p[1] + (q[1] - p[1]) * t;
+            const c = vp.worldToCanvas([cx, cy, zFocal] as any);
+            const e = vp.worldToCanvas([cx + m.radius, cy, zFocal] as any);
+            const rPx = Math.hypot(e[0] - c[0], e[1] - c[1]);
+            nodes.push(
+              <circle key={i} cx={c[0]} cy={c[1]} r={Math.max(1.5, rPx)}
+                fill={m.color} fillOpacity={0.35} stroke={m.color} strokeWidth={1.5} />,
+            );
+          }
+          return <g key={m.id}>{nodes}</g>;
+        })}
         {state.implants.filter(i => i.visible).map(imp => {
           const af = nearestArchFrame(state.archCurveControlPoints!, [imp.position[0], imp.position[1]]);
           if (!af) return null;
@@ -61,8 +84,30 @@ export function ImplantAxialOverlay() {
           const isActive = state.activeImplantId === imp.id;
           const color = isActive ? 'rgb(255, 200, 0)' : 'rgb(0, 180, 255)';
 
+          // Guided: drill sleeve disc where the slice crosses the bushing
+          // (sleeve spans axis param −(offset+height) … −offset of the platform)
+          let sleeveDisc: { cx: number; cy: number; r: number } | null = null;
+          if (imp.guided?.enabled) {
+            const ts = (zFocal - imp.position[2]) / axis[2];
+            if (ts <= -imp.guided.sleeveOffset && ts >= -(imp.guided.sleeveOffset + imp.guided.sleeveHeight)) {
+              const sx = imp.position[0] + axis[0] * ts;
+              const sy = imp.position[1] + axis[1] * ts;
+              const sr = getImplantSystem(imp.systemId).sleeveDiameter / 2;
+              const sc = vp.worldToCanvas([sx, sy, zFocal] as any);
+              const se = vp.worldToCanvas([sx + sr, sy, zFocal] as any);
+              sleeveDisc = { cx: sc[0], cy: sc[1], r: Math.hypot(se[0] - sc[0], se[1] - sc[1]) };
+            }
+          }
+
           return (
             <g key={imp.id}>
+              {sleeveDisc && (
+                <circle
+                  cx={sleeveDisc.cx} cy={sleeveDisc.cy} r={sleeveDisc.r}
+                  fill="rgba(120, 230, 140, 0.15)"
+                  stroke="rgb(120, 230, 140)" strokeWidth={1.5}
+                />
+              )}
               <circle
                 cx={c[0]} cy={c[1]} r={rPx}
                 fill={isActive ? 'rgba(255, 200, 0, 0.25)' : 'rgba(0, 180, 255, 0.2)'}

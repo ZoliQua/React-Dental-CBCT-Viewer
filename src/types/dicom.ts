@@ -87,7 +87,109 @@ export interface ImplantData {
   angleBLDeg: number;
   /** Mesiodistal apex tilt in degrees (lean along the arch, visible on the panoramic) */
   angleMDDeg: number;
+  /** Implant system catalog id (provides sleeve diameter + available sizes) */
+  systemId?: string;
+  /** Guided (template) surgery plan — drill sleeve + osteotomy protocol */
+  guided?: GuidedPlan;
 }
+
+// ── Guided (template-based) surgery ────────────────────────────
+
+export const IMPLANT_DIAMETERS = [3.0, 3.3, 3.5, 3.75, 4.0, 4.2, 4.5, 5.0, 5.5, 6.0];
+export const IMPLANT_LENGTHS = [6.0, 7.0, 8.0, 8.5, 9.0, 10.0, 11.0, 11.5, 12.0, 13.0, 14.0, 15.0, 16.0];
+
+/** An implant product line: available sizes + its guided drill sleeve. */
+export interface ImplantSystem {
+  id: string;
+  brand: string;
+  line: string;
+  diameters: number[];
+  lengths: number[];
+  /** Persely (drill sleeve) working diameter in mm */
+  sleeveDiameter: number;
+}
+
+export const IMPLANT_SYSTEMS: ImplantSystem[] = [
+  {
+    id: 'generic',
+    brand: 'Generic',
+    line: 'Standard',
+    diameters: IMPLANT_DIAMETERS,
+    lengths: IMPLANT_LENGTHS,
+    sleeveDiameter: 5.0,
+  },
+  {
+    id: 'alphabio-multineo-cs',
+    brand: 'Alpha-Bio',
+    line: 'MultiNeo CS',
+    diameters: [3.5, 3.75, 4.2, 5.0, 6.0],
+    lengths: [8.0, 10.0, 11.5, 13.0, 16.0],
+    sleeveDiameter: 5.5,
+  },
+  {
+    id: 'straumann-blx',
+    brand: 'Straumann',
+    line: 'BLX',
+    diameters: [3.5, 3.75, 4.0, 4.5, 5.0, 5.5, 6.5],
+    lengths: [6.0, 8.0, 10.0, 12.0, 14.0, 16.0],
+    sleeveDiameter: 5.0,
+  },
+  {
+    id: 'nobel-active',
+    brand: 'Nobel Biocare',
+    line: 'NobelActive',
+    diameters: [3.0, 3.5, 4.3, 5.0],
+    lengths: [8.5, 10.0, 11.5, 13.0, 15.0, 18.0],
+    sleeveDiameter: 5.0,
+  },
+];
+
+export const DEFAULT_IMPLANT_SYSTEM_ID = 'generic';
+
+/** Guided drill sleeve + osteotomy parameters for one implant. */
+export interface GuidedPlan {
+  /** Show the sleeve + drill axis on every view */
+  enabled: boolean;
+  /** Sleeve bottom → implant platform distance along the axis, mm (drill protocol offset) */
+  sleeveOffset: number;
+  /** Sleeve (bushing) height, mm */
+  sleeveHeight: number;
+  /** Planned osteotomy depth from the platform along the axis, mm (Fúró hossz) */
+  drillLength: number;
+}
+
+export const SLEEVE_OFFSETS = [8, 9, 10, 11, 12];
+
+export function getImplantSystem(id: string | undefined): ImplantSystem {
+  return IMPLANT_SYSTEMS.find((s) => s.id === id) ?? IMPLANT_SYSTEMS[0];
+}
+
+export function defaultGuidedPlan(implant: { length: number }): GuidedPlan {
+  return { enabled: true, sleeveOffset: 9, sleeveHeight: 5, drillLength: implant.length };
+}
+
+// ── Safety: anatomy markers (nerve canal, sinus floor) ─────────
+
+export type AnatomyType = 'nerve' | 'sinus';
+
+/** A traced anatomical boundary as a world-mm polyline with a safety tube. */
+export interface AnatomyMarker {
+  id: string;
+  name: string;
+  visible: boolean;
+  type: AnatomyType;
+  /** Display color */
+  color: string;
+  /** Safety tube radius, mm */
+  radius: number;
+  /** World polyline, mm */
+  points: [number, number, number][];
+}
+
+export const ANATOMY_DEFAULTS: Record<AnatomyType, { color: string; radius: number }> = {
+  nerve: { color: '#ff5577', radius: 1.5 },
+  sinus: { color: '#55aaff', radius: 1.0 },
+};
 
 /** One measurement shown as its own layer in the layers panel */
 export interface MeasurementLayer {
@@ -106,9 +208,6 @@ export interface MeasurementLayer {
   /** Formatted measured value (mm, °, HU) */
   value?: string;
 }
-
-export const IMPLANT_DIAMETERS = [3.0, 3.3, 3.5, 3.75, 4.0, 4.2, 4.5, 5.0, 5.5, 6.0];
-export const IMPLANT_LENGTHS = [6.0, 7.0, 8.0, 8.5, 9.0, 10.0, 11.0, 11.5, 12.0, 13.0, 14.0, 15.0, 16.0];
 
 export type Volume3DPreset = 'CT-Bone' | 'CT-Bones' | 'CT-Coronary-Arteries-3' | 'CT-MIP';
 

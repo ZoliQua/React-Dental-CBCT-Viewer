@@ -6,6 +6,7 @@ import { useI18n } from '@/i18n/I18nContext';
 import { generateCrossSection, type CrossSectionResult } from '@/core/cprEngine';
 import { RENDERING_ENGINE_ID, VP_AXIAL } from '@/core/constants';
 import { ImplantOverlay } from '@/components/implant/ImplantOverlay';
+import { ComputingOverlay } from './ComputingOverlay';
 
 interface ViewportCrossSectionProps {
   volumeId: string;
@@ -85,17 +86,18 @@ function getContentRect(container: HTMLElement, canvas: HTMLCanvasElement) {
 // ── Component ──────────────────────────────────────────────────
 
 export function ViewportCrossSection({ volumeId }: ViewportCrossSectionProps) {
-  const { state } = useViewer();
+  const { state, dispatch } = useViewer();
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const resultRef = useRef<CrossSectionResult | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const wcRef = useRef(300);
-  const wwRef = useRef(2500);
   const [computing, setComputing] = useState(false);
-  const [wc, setWc] = useState(300);
-  const [ww, setWw] = useState(2500);
+  // Shared window/level (preset buttons + W/L drag all flow through context)
+  const wc = state.windowLevel.wc;
+  const ww = state.windowLevel.ww;
+  const wcRef = useRef(wc);
+  const wwRef = useRef(ww);
   const [csResult, setCsResult] = useState<CrossSectionResult | null>(null);
 
   // Keep refs in sync for use in debounced callbacks
@@ -262,15 +264,21 @@ export function ViewportCrossSection({ volumeId }: ViewportCrossSectionProps) {
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     const d = wlDragRef.current;
     if (!d) return;
-    setWw(Math.max(1, d.startWw + (e.clientX - d.startX) * 5));
-    setWc(d.startWc + (e.clientY - d.startY) * 5);
-  }, []);
+    dispatch({
+      type: 'SET_WINDOW_LEVEL',
+      payload: {
+        ww: Math.max(1, d.startWw + (e.clientX - d.startX) * 5),
+        wc: d.startWc + (e.clientY - d.startY) * 5,
+      },
+    });
+  }, [dispatch]);
 
   const handlePointerUp = useCallback(() => { wlDragRef.current = null; }, []);
 
   return (
     <div
       ref={containerRef}
+      data-crosssection-view
       className="relative w-full h-full bg-black overflow-hidden select-none"
       style={state.implantPlacementMode ? { cursor: 'crosshair' } : undefined}
       onPointerDown={handlePointerDown}
@@ -333,11 +341,7 @@ export function ViewportCrossSection({ volumeId }: ViewportCrossSectionProps) {
         WC: {Math.round(wc)} / WW: {Math.round(ww)}
       </div>
 
-      {computing && (
-        <div className="absolute top-1 right-2 text-dental-400 text-xs font-mono animate-pulse pointer-events-none">
-          {t('viewport.computing')}
-        </div>
-      )}
+      <ComputingOverlay show={computing} />
 
       {/* Implant placement mode indicator */}
       {state.implantPlacementMode && (

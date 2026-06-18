@@ -1,17 +1,84 @@
 /**
- * PDF export: captures the panoramic and cross-section canvases (when
- * present) into an A4 report with patient info, planned implants and
- * measurements — all in the current UI language.
+ * PDF export: captures the panoramic and cross-section views (image canvas +
+ * the implant / measurement overlays drawn on top, via html2canvas) into an A4
+ * report with patient info, planned implants and measurements — all in the
+ * current UI language.
  */
 
 import { jsPDF } from 'jspdf';
-import type { DicomStudyInfo, ImplantData, MeasurementLayer } from '@/types/dicom';
+import type { DicomStudyInfo, ImplantData, MeasurementLayer, AnatomyMarker } from '@/types/dicom';
+import { getImplantSystem } from '@/types/dicom';
+import { implantWorldAxis } from '@/core/implantGeometry';
+import { evaluateImplant, type ImplantSeg } from '@/core/safety';
+import type { ReportFields } from '@/context/ViewerContext';
+
+/** Render an inline <svg> overlay to an Image at the given on-screen size. */
+function svgToImage(svg: SVGSVGElement, w: number, h: number): Promise<HTMLImageElement | null> {
+  const clone = svg.cloneNode(true) as SVGSVGElement;
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('width', String(w));
+  clone.setAttribute('height', String(h));
+  const str = new XMLSerializer().serializeToString(clone);
+  const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(str)}`;
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+/**
+ * Composite a viewport's image canvas with its SVG overlays (implants,
+ * sleeves, measurements) into one undistorted canvas at the image's own
+ * aspect ratio. The overlays are drawn over the canvas content rect only
+ * (the letterboxed area), so nothing is stretched — unlike html2canvas,
+ * which ignores the canvas object-fit and squashes the image.
+ */
+async function captureView(view: HTMLElement): Promise<HTMLCanvasElement | null> {
+  const bare = view.querySelector('canvas') as HTMLCanvasElement | null;
+  if (!bare || !bare.width || !bare.height) return null;
+
+  const W = bare.width;
+  const H = bare.height;
+  const CW = view.clientWidth;
+  const CH = view.clientHeight;
+  if (!CW || !CH) return null;
+
+  // Content rect: where the image actually sits inside the container (object-fit: contain)
+  const scale = Math.min(CW / W, CH / H);
+  const rw = W * scale;
+  const rh = H * scale;
+  const left = (CW - rw) / 2;
+  const top = (CH - rh) / 2;
+
+  const SS = 2; // supersample so vector overlays stay crisp
+  const out = document.createElement('canvas');
+  out.width = W * SS;
+  out.height = H * SS;
+  const ctx = out.getContext('2d');
+  if (!ctx) return null;
+
+  ctx.drawImage(bare, 0, 0, out.width, out.height);
+
+  // Map the on-screen content rect of each SVG overlay onto the full output
+  for (const svg of Array.from(view.querySelectorAll('svg')) as SVGSVGElement[]) {
+    const img = await svgToImage(svg, CW, CH);
+    if (img) ctx.drawImage(img, left, top, rw, rh, 0, 0, out.width, out.height);
+  }
+
+  return out;
+}
 
 interface PdfExportOptions {
   t: (key: string, params?: Record<string, string | number>) => string;
   study: DicomStudyInfo | null;
   implants: ImplantData[];
   measurements: MeasurementLayer[];
+  report?: ReportFields;
+  anatomy?: AnatomyMarker[];
+  archCurve?: [number, number][] | null;
+  thresholds?: { nerve: number; sinus: number; neighbor: number };
   lang: string;
 }
 
@@ -19,7 +86,7 @@ const PAGE_W = 210;
 const PAGE_H = 297;
 const MARGIN = 14;
 
-export function exportViewPdf({ t, study, implants, measurements, lang }: PdfExportOptions): void {
+export async function exportViewPdf({ t, study, implants, measurements, report, anatomy, archCurve, thresholds, lang }: PdfExportOptions): Promise<void> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   let y = MARGIN;
 
@@ -44,32 +111,58 @@ export function exportViewPdf({ t, study, implants, measurements, lang }: PdfExp
   doc.setFontSize(10);
   doc.text(`${t('pdf.date')}: ${new Date().toLocaleDateString(lang)}`, MARGIN, y);
   y += 5;
-  if (study) {
-    doc.text(`${t('pdf.patient')}: ${study.patientName || '-'}${study.patientId ? ` (${study.patientId})` : ''}`, MARGIN, y);
+  // Editable report header fields take precedence over the DICOM tags
+  const patientName = report?.patientName?.trim() || study?.patientName || '-';
+  doc.text(`${t('pdf.patient')}: ${patientName}${study?.patientId ? ` (${study.patientId})` : ''}`, MARGIN, y);
+  y += 5;
+  if (report?.patientAge?.trim()) {
+    doc.text(`${t('pdf.age')}: ${report.patientAge.trim()}`, MARGIN, y);
     y += 5;
-    if (study.institution) {
-      doc.text(study.institution, MARGIN, y);
-      y += 5;
-    }
+  }
+  if (report?.quoteNumber?.trim()) {
+    doc.text(`${t('pdf.quote')}: ${report.quoteNumber.trim()}`, MARGIN, y);
+    y += 5;
+  }
+  if (report?.statusDescription?.trim()) {
+    const lines = doc.splitTextToSize(`${t('pdf.status')}: ${report.statusDescription.trim()}`, PAGE_W - 2 * MARGIN);
+    doc.text(lines, MARGIN, y);
+    y += 5 * lines.length;
+  }
+  if (study?.institution) {
+    doc.text(study.institution, MARGIN, y);
+    y += 5;
   }
   y += 3;
 
-  // View captures
-  const addCanvas = (selector: string, title: string) => {
-    const canvas = document.querySelector(selector) as HTMLCanvasElement | null;
-    if (!canvas || canvas.width === 0 || canvas.height === 0) return;
+  // View captures — snapshot the whole view container (image + overlays) so
+  // the planned implants, sleeves and measurements appear on the picture, not
+  // just the bare generated image. Falls back to the raw canvas on failure.
+  const addView = async (viewSelector: string, canvasSelector: string, title: string) => {
+    const view = document.querySelector(viewSelector) as HTMLElement | null;
+    let shot: HTMLCanvasElement | null = null;
+    if (view) {
+      try {
+        shot = await captureView(view);
+      } catch {
+        shot = null;
+      }
+    }
+    if (!shot) {
+      shot = document.querySelector(canvasSelector) as HTMLCanvasElement | null;
+    }
+    if (!shot || shot.width === 0 || shot.height === 0) return;
     const wMm = PAGE_W - 2 * MARGIN;
-    const hMm = (wMm * canvas.height) / canvas.width;
+    const hMm = (wMm * shot.height) / shot.width;
     pageBreak(hMm + 10);
     doc.setFontSize(11);
     doc.text(title, MARGIN, y);
     y += 4;
-    doc.addImage(canvas.toDataURL('image/png'), 'PNG', MARGIN, y, wMm, hMm);
+    doc.addImage(shot.toDataURL('image/png'), 'PNG', MARGIN, y, wMm, hMm);
     y += hMm + 6;
   };
 
-  addCanvas('[data-panoramic-canvas]', t('viewport.panorama'));
-  addCanvas('[data-crosssection-canvas]', t('viewport.crossSection'));
+  await addView('[data-panoramic-view]', '[data-panoramic-canvas]', t('viewport.panorama'));
+  await addView('[data-crosssection-view]', '[data-crosssection-canvas]', t('viewport.crossSection'));
 
   // Implants
   if (implants.length > 0) {
@@ -80,11 +173,26 @@ export function exportViewPdf({ t, study, implants, measurements, lang }: PdfExp
     doc.setFontSize(9);
     for (const imp of implants) {
       pageBreak(5);
+      const sys = getImplantSystem(imp.systemId);
       doc.text(
-        `• ${imp.name} — Ø${imp.diameter} × ${imp.length} mm, B-L ${imp.angleBLDeg}°, M-D ${imp.angleMDDeg}°`,
+        `• ${imp.name} — ${sys.brand} ${sys.line}, Ø${imp.diameter} × ${imp.length} mm, B-L ${imp.angleBLDeg}°, M-D ${imp.angleMDDeg}°`,
         MARGIN + 2, y,
       );
       y += 4.5;
+      if (imp.guided?.enabled) {
+        pageBreak(5);
+        doc.setTextColor(110);
+        doc.text(
+          `   ${t('pdf.guidedLine', {
+            sleeve: sys.sleeveDiameter,
+            offset: imp.guided.sleeveOffset,
+            drill: imp.guided.drillLength,
+          })}`,
+          MARGIN + 2, y,
+        );
+        doc.setTextColor(0);
+        y += 4.5;
+      }
     }
     y += 3;
   }
@@ -100,6 +208,38 @@ export function exportViewPdf({ t, study, implants, measurements, lang }: PdfExp
       pageBreak(5);
       doc.text(`• ${m.name}${m.value ? ` — ${m.value}` : ''}`, MARGIN + 2, y);
       y += 4.5;
+    }
+    y += 3;
+  }
+
+  // Safety summary (clearance of each implant to anatomy + neighbours)
+  const vis = (anatomy ?? []).filter((a) => a.visible && a.points.length > 0);
+  if (archCurve && implants.length > 0 && (vis.length > 0 || implants.length > 1)) {
+    const thr = thresholds ?? { nerve: 2, sinus: 1, neighbor: 3 };
+    const segs: ImplantSeg[] = implants.flatMap((i) => {
+      const wa = implantWorldAxis(archCurve, i);
+      return wa ? [{ id: i.id, entry: wa.entry, apex: wa.apex, radius: i.diameter / 2 }] : [];
+    });
+    pageBreak(12);
+    doc.setFontSize(12);
+    doc.text(t('pdf.safetyTitle'), MARGIN, y);
+    y += 5.5;
+    doc.setFontSize(9);
+    for (const imp of implants) {
+      const self = segs.find((s) => s.id === imp.id);
+      if (!self) continue;
+      const ev = evaluateImplant(self, segs, vis, thr);
+      const parts = ev.anatomy.map((r) => {
+        const name = vis.find((a) => a.id === r.id)?.name ?? '';
+        return `${name} ${r.mm.toFixed(1)} mm ${r.ok ? 'OK' : '!'}`;
+      });
+      if (ev.neighborMm !== null) {
+        parts.push(`${t('safety.neighbor')} ${ev.neighborMm.toFixed(1)} mm ${ev.neighborOk ? 'OK' : '!'}`);
+      }
+      pageBreak(5);
+      const line = doc.splitTextToSize(`• ${imp.name}: ${parts.join(' · ')}`, PAGE_W - 2 * MARGIN - 2);
+      doc.text(line, MARGIN + 2, y);
+      y += 4.5 * line.length;
     }
   }
 

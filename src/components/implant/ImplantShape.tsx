@@ -17,7 +17,16 @@ interface ImplantShapeProps {
   opacity?: number;
   /** When true, the whole body (with padding) is a grab target */
   interactive?: boolean;
+  /** Faint safety-margin halo around the body, horizontal extent in px */
+  safetyXPx?: number;
+  /** Vertical safety-margin extent in px (defaults to safetyXPx) */
+  safetyYPx?: number;
+  /** Safety halo color (any CSS color); defaults to red */
+  safetyColor?: string;
+  /** Draw a red alert ring when a safety clearance is violated */
+  warn?: boolean;
   onPointerDown?: (e: React.PointerEvent) => void;
+  onDoubleClick?: (e: React.MouseEvent) => void;
 }
 
 export function ImplantShape({
@@ -27,7 +36,12 @@ export function ImplantShape({
   label,
   opacity = 1,
   interactive = false,
+  safetyXPx,
+  safetyYPx,
+  safetyColor = '#ff3c3c',
+  warn = false,
   onPointerDown,
+  onDoubleClick,
 }: ImplantShapeProps) {
   const rTop = widthPx / 2;
   const rBot = widthPx * 0.32;
@@ -68,6 +82,7 @@ export function ImplantShape({
         ? { pointerEvents: 'auto', cursor: 'move' }
         : { pointerEvents: 'none' }}
       onPointerDown={onPointerDown}
+      onDoubleClick={onDoubleClick}
     >
       {/* Full-body grab target incl. transparent padding around the outline */}
       {interactive && (
@@ -76,6 +91,40 @@ export function ImplantShape({
           width={widthPx + 8} height={heightPx + 8}
           fill="transparent"
           style={{ pointerEvents: 'all' }}
+        />
+      )}
+      {/* Safety margin halo (e.g. 1 mm clearance to nerve / sinus) */}
+      {safetyXPx ? (() => {
+        const my = safetyYPx ?? safetyXPx;
+        return (
+          <rect
+            x={-rTop - safetyXPx}
+            y={-my}
+            width={widthPx + 2 * safetyXPx}
+            height={heightPx + 2 * my}
+            rx={Math.min(safetyXPx, 5)}
+            fill={safetyColor}
+            fillOpacity={0.08}
+            stroke={safetyColor}
+            strokeOpacity={0.6}
+            strokeWidth={1}
+            style={{ pointerEvents: 'none' }}
+          />
+        );
+      })() : null}
+      {/* Safety violation alert ring */}
+      {warn && (
+        <rect
+          x={-rTop - 3}
+          y={-3}
+          width={widthPx + 6}
+          height={heightPx + 6}
+          rx={4}
+          fill="none"
+          stroke="#ff2d2d"
+          strokeWidth={2}
+          strokeDasharray="5 3"
+          style={{ pointerEvents: 'none' }}
         />
       )}
       <path d={outline} fill={fill} stroke={stroke} strokeWidth={1.5} />

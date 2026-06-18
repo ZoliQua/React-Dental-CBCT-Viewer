@@ -9,6 +9,9 @@ import {
   archFrameAt,
   implantAxis,
   implantPlaneStrip,
+  cylinderPlaneStrip,
+  sleeveBody,
+  drillSegment,
   radiusProfile,
   type Vec3,
 } from '../src/core/implantGeometry';
@@ -101,6 +104,44 @@ describe('arch frames and implant axis', () => {
     const af = nearestArchFrame(cps, [25, 45])!;
     const a = implantAxis(af, 135, 30);
     expect(Math.hypot(a[0], a[1], a[2])).toBeCloseTo(1, 9);
+  });
+});
+
+describe('guided surgery: sleeve & drill', () => {
+  const body = { entry: [0, 0, 0] as Vec3, axis: down, diameter: D, length: L };
+  const sleeve = { diameter: 5, offset: 9, height: 5 };
+
+  it('cylinderPlaneStrip with a constant profile shows the full sleeve diameter', () => {
+    const strip = cylinderPlaneStrip(sleeveBody(body, sleeve), frame, () => 1);
+    expect(strip).not.toBeNull();
+    expect(maxHalfWidth(strip!)).toBeCloseTo(sleeve.diameter / 2, 2);
+  });
+
+  it('cylinderPlaneStrip with radiusProfile equals implantPlaneStrip', () => {
+    const a = cylinderPlaneStrip(body, frame, radiusProfile);
+    const b = implantPlaneStrip(body, frame);
+    expect(a).not.toBeNull();
+    expect(a!.length).toBe(b!.length);
+    for (let i = 0; i < a!.length; i++) {
+      expect(a![i][0]).toBeCloseTo(b![i][0], 9);
+      expect(a![i][1]).toBeCloseTo(b![i][1], 9);
+    }
+  });
+
+  it('sleeveBody sits coronal of the platform, coaxial with the implant', () => {
+    const s = sleeveBody(body, sleeve);
+    // apex points down (−Z); sleeve top is offset+height above the platform
+    expect(s.entry[2]).toBeCloseTo(sleeve.offset + sleeve.height, 9);
+    expect(s.length).toBe(sleeve.height);
+    expect(s.axis).toEqual(down);
+    // sleeve bottom is exactly `offset` above the platform
+    expect(s.entry[2] + s.axis[2] * s.length).toBeCloseTo(sleeve.offset, 9);
+  });
+
+  it('drillSegment runs from the sleeve top to the planned drill depth', () => {
+    const [start, end] = drillSegment(body, sleeve, 12);
+    expect(start[2]).toBeCloseTo(sleeve.offset + sleeve.height, 9); // sleeve top
+    expect(end[2]).toBeCloseTo(-12, 9);                              // 12 mm apical
   });
 });
 

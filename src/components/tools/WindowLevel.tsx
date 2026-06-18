@@ -1,25 +1,28 @@
 import { getRenderingEngine } from '@cornerstonejs/core';
 import { WL_PRESETS } from '@/types/dicom';
-import { RENDERING_ENGINE_ID, VIEWPORT_ID } from '@/core/constants';
+import { RENDERING_ENGINE_ID } from '@/core/constants';
 import { useI18n } from '@/i18n/I18nContext';
+import { useViewer } from '@/context/ViewerContext';
 
 export function WindowLevelPresets({ vertical = false }: { vertical?: boolean }) {
   const { t } = useI18n();
+  const { dispatch } = useViewer();
 
   const applyPreset = (wc: number, ww: number) => {
-    const renderingEngine = getRenderingEngine(RENDERING_ENGINE_ID);
-    if (!renderingEngine) return;
+    // Shared W/L drives the custom canvas views (panoramic, cross-section)
+    dispatch({ type: 'SET_WINDOW_LEVEL', payload: { wc, ww } });
 
-    const viewport = renderingEngine.getStackViewport(VIEWPORT_ID);
-    if (!viewport) return;
-
-    viewport.setProperties({
-      voiRange: {
-        lower: wc - ww / 2,
-        upper: wc + ww / 2,
-      },
+    // And apply directly to any Cornerstone volume/stack viewports (MPR, 3D)
+    const engine = getRenderingEngine(RENDERING_ENGINE_ID);
+    engine?.getViewports().forEach((vp) => {
+      if (typeof (vp as any).setProperties !== 'function') return;
+      try {
+        (vp as any).setProperties({ voiRange: { lower: wc - ww / 2, upper: wc + ww / 2 } });
+        vp.render();
+      } catch {
+        /* viewport type without VOI — ignore */
+      }
     });
-    viewport.render();
   };
 
   return (

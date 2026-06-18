@@ -5,6 +5,8 @@ import { RENDERING_ENGINE_ID, VP_3D } from '@/core/constants';
 import { useViewer } from '@/context/ViewerContext';
 import { useI18n } from '@/i18n/I18nContext';
 import { ViewportOverlay } from './ViewportOverlay';
+import { Implant3DActors } from './Implant3DActors';
+import type { Implant3DLayers } from '@/core/implant3D';
 import { VOLUME_3D_PRESETS, type Volume3DPreset } from '@/types/dicom';
 
 interface Viewport3DProps {
@@ -19,6 +21,8 @@ export function Viewport3D({ volumeId }: Viewport3DProps) {
   const destroyedRef = useRef(false);
   const [activePreset, setActivePreset] = useState<Volume3DPreset>('CT-Bone');
   const [slabThickness, setSlabThickness] = useState<number>(0); // 0 = no clipping
+  const [ready, setReady] = useState(false); // volume loaded → safe to add actors
+  const [layers3D, setLayers3D] = useState<Implant3DLayers>({ implant: true, sleeve: true, axis: true });
 
   const handleResize = useCallback(() => {
     const engine = getRenderingEngine(RENDERING_ENGINE_ID);
@@ -70,6 +74,7 @@ export function Viewport3D({ volumeId }: Viewport3DProps) {
     if (!engine) return;
 
     let cancelled = false;
+    setReady(false);
 
     async function loadVolume() {
       try {
@@ -86,6 +91,8 @@ export function Viewport3D({ volumeId }: Viewport3DProps) {
         (viewport as any).setProperties({ preset: activePreset });
         viewport.resetCamera({ resetPan: true, resetZoom: true, resetToCenter: true });
         viewport.render();
+        // Volume is in the scene — implant actors can be safely added now
+        setReady(true);
       } catch (err) {
         if (!cancelled && !destroyedRef.current) {
           console.error('[DQ-DICOM] Failed to set volume on 3D viewport:', err);
@@ -97,6 +104,7 @@ export function Viewport3D({ volumeId }: Viewport3DProps) {
 
     return () => {
       cancelled = true;
+      setReady(false);
     };
   }, [volumeId, activePreset]);
 
@@ -142,10 +150,34 @@ export function Viewport3D({ volumeId }: Viewport3DProps) {
 
       <ViewportOverlay sliceIndex={0} totalSlices={0} />
 
+      {/* Implant / sleeve / axis 3D meshes (added once the volume is loaded) */}
+      {ready && <Implant3DActors layers={layers3D} />}
+
       {/* 3D label */}
       <div className="absolute top-1 left-1/2 -translate-x-1/2 text-yellow-400 text-xs font-mono font-bold pointer-events-none select-none [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
         3D
       </div>
+
+      {/* 3D implant layer toggles */}
+      {state.implants.length > 0 && (
+        <div className="absolute top-2 left-2 z-10 flex flex-col gap-1 bg-gray-900/70 rounded p-1.5">
+          {([
+            ['implant', t('view3d.implant')],
+            ['sleeve', t('view3d.sleeve')],
+            ['axis', t('view3d.axis')],
+          ] as [keyof Implant3DLayers, string][]).map(([key, label]) => (
+            <label key={key} className="flex items-center gap-1.5 text-[10px] text-gray-200 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={layers3D[key]}
+                onChange={(e) => setLayers3D((p) => ({ ...p, [key]: e.target.checked }))}
+                className="accent-dental-400 w-3 h-3"
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      )}
 
       {/* Preset selector */}
       <div className="absolute bottom-2 right-2 flex flex-col gap-1 z-10">

@@ -84,6 +84,16 @@ function DownloadIcon() {
   );
 }
 
+function NewLoadIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
+  );
+}
+
 function TopBarButton({
   title, active = false, onClick, children,
 }: {
@@ -205,6 +215,18 @@ export function TopBar() {
       )}
 
       <div className="flex items-center gap-1">
+        {/* New load (reset to landing) */}
+        {state.study && (
+          <button
+            onClick={() => dispatch({ type: 'RESET' })}
+            title={t('topbar.newLoad')}
+            className="h-8 px-2 flex items-center gap-1.5 rounded text-gray-600 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
+          >
+            <NewLoadIcon />
+            <span className="text-xs">{t('topbar.newLoad')}</span>
+          </button>
+        )}
+
         {/* Export dropdown */}
         {state.study && (
           <div className="relative" ref={exportRef}>
@@ -234,8 +256,18 @@ export function TopBar() {
                 </button>
                 <button
                   onClick={() => {
-                    exportViewPdf({ t, study: state.study, implants: state.implants, measurements: state.measurements, lang });
                     setExportOpen(false);
+                    void exportViewPdf({
+                      t,
+                      study: state.study,
+                      implants: state.implants,
+                      measurements: state.measurements,
+                      report: state.report,
+                      anatomy: state.anatomy,
+                      archCurve: state.archCurveControlPoints,
+                      thresholds: { nerve: state.safety.nerveMm, sinus: state.safety.sinusMm, neighbor: state.safety.neighborMm },
+                      lang,
+                    });
                   }}
                   className="w-full px-3 py-1.5 text-xs text-left text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
                 >

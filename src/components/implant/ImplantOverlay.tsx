@@ -13,18 +13,24 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useViewer } from '@/context/ViewerContext';
 import { useI18n } from '@/i18n/I18nContext';
 import type { ImplantData } from '@/types/dicom';
+import { getImplantSystem } from '@/types/dicom';
 import { ImplantShape } from './ImplantShape';
 import { isMeasureTool } from '@/components/measurements/CanvasMeasurementOverlay';
 import { crossSectionFrame } from '@/core/cprMath';
 import {
   nearestArchFrame,
   implantAxis,
+  implantWorldAxis,
   implantPlaneStrip,
+  cylinderPlaneStrip,
+  sleeveBody,
+  drillSegment,
   projectToPlane,
   cross3,
   dot3,
   type Vec3,
 } from '@/core/implantGeometry';
+import { evaluateImplant, type ImplantSeg } from '@/core/safety';
 
 interface ImplantOverlayProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -132,8 +138,24 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
 
   // ── Placement click ─────────────────────────────────────────
 
-  const handleClick = useCallback((e: React.MouseEvent) => {
+  // Esc leaves placement mode (it now stays on for placing several in a row)
+  useEffect(() => {
     if (!state.implantPlacementMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') dispatch({ type: 'SET_IMPLANT_PLACEMENT_MODE', payload: false });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [state.implantPlacementMode, dispatch]);
+
+  const handlePlacePointerDown = useCallback((e: React.PointerEvent) => {
+    if (!state.implantPlacementMode) return;
+    // Only place on empty background. Clicks on an existing implant (body or
+    // apex handle) call stopPropagation in their own handlers, so they never
+    // reach here — that prevents the "drag duplicates the implant" bug where a
+    // grab-click in persistent placement mode also dropped a new implant.
+    if (e.target !== e.currentTarget) return;
+    e.stopPropagation(); // also blocks the W/L drag underneath
 
     const mm = pixelToMm(e.clientX, e.clientY);
     if (!mm) return;
@@ -243,6 +265,14 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
   // ── Render plane intersections ──────────────────────────────
 
   const controlPoints = state.archCurveControlPoints;
+  const visAnatomy = state.anatomy.filter(a => a.visible);
+  const safetyThresholds = { nerve: state.safety.nerveMm, sinus: state.safety.sinusMm, neighbor: state.safety.neighborMm };
+  const implantSegs: ImplantSeg[] = controlPoints
+    ? state.implants.filter(i => i.visible).flatMap(i => {
+        const wa = implantWorldAxis(controlPoints, i);
+        return wa ? [{ id: i.id, entry: wa.entry, apex: wa.apex, radius: i.diameter / 2 }] : [];
+      })
+    : [];
   // While a measurement tool is active, let clicks reach the measurement overlay
   const measuring = isMeasureTool(state.activeTool);
   const svgInteractive = !measuring && (state.implantPlacementMode || state.implants.length > 0);
@@ -255,16 +285,32 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
         zIndex: 25,
         cursor: state.implantPlacementMode ? 'crosshair' : 'default',
       }}
-      onMouseDown={(e) => {
-        // Prevent W/L drag from starting when clicking on the SVG in placement mode
-        if (state.implantPlacementMode) e.stopPropagation();
-      }}
-      onClick={handleClick}
+      onPointerDown={handlePlacePointerDown}
     >
+      {/* Anatomy markers where the tube crosses this plane (chord disc) */}
+      {frame && state.anatomy.filter(a => a.visible).map(m => {
+        const discs = m.points.map((p, i) => {
+          const [u, v, w] = projectToPlane(p, frame);
+          if (Math.abs(w) >= m.radius) return null;
+          const chord = Math.sqrt(m.radius * m.radius - w * w);
+          const px = mmToPixel(u, zMid + v);
+          if (!px) return null;
+          const rPx = chord * mmToPixelScale();
+          return <circle key={i} cx={px[0]} cy={px[1]} r={Math.max(1, rPx)} fill={m.color} fillOpacity={0.4} stroke={m.color} strokeWidth={1} />;
+        }).filter(Boolean);
+        return <g key={m.id} style={{ pointerEvents: 'none' }}>{discs}</g>;
+      })}
       {frame && controlPoints && state.implants.filter(i => i.visible).map(imp => {
         const af = nearestArchFrame(controlPoints, [imp.position[0], imp.position[1]]);
         if (!af) return null;
         const axis = implantAxis(af, imp.angleBLDeg, imp.angleMDDeg);
+
+        // Safety: red alert ring if any anatomy marker or neighbour is too close
+        let warn = false;
+        const selfSeg = implantSegs.find(s => s.id === imp.id);
+        if (selfSeg && (visAnatomy.length || implantSegs.length > 1)) {
+          warn = !evaluateImplant(selfSeg, implantSegs, visAnatomy, safetyThresholds).worstOk;
+        }
 
         const [u0, v0, w0] = projectToPlane(imp.position, frame);
         const entryPx = mmToPixel(u0, zMid + v0);
@@ -273,15 +319,36 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
         const scaleH = mmToPixelScale();
         const scaleV = mmToPixelScaleV();
 
-        // In-plane projection of the axis → silhouette lean + foreshortening
+        // In-plane projection of the axis → silhouette lean + foreshortening.
+        // Screen mapping: +u → right, +v → up; ImplantShape's local body points
+        // down (0,1), so the apex screen direction must equal (au, −av). That
+        // requires angle = atan2(−au, −av) — using +au mirrors the silhouette
+        // against the true intersection strip (the "doubling" on rotation).
         const au = dot3(axis, frame.eU);
         const av = dot3(axis, frame.eV);
-        const imgAngle = Math.atan2(au, -av) * (180 / Math.PI);
+        const imgAngle = Math.atan2(-au, -av) * (180 / Math.PI);
         const inPlaneLen = imp.length * Math.hypot(au, av);
 
-        // Ghost silhouette fades with the entry's distance from the plane but
-        // never disappears — the implant stays findable and grabbable
-        const ghostOpacity = Math.max(0.3, Math.min(1, 1 - (Math.abs(w0) - imp.diameter / 2) / 10));
+        // The implant is a true 3D body, so it belongs on THIS cross-section
+        // only where the plane actually passes through (or grazes) it. Find how
+        // close the body comes to the plane along its axis — w(t) = w0 + dw·t,
+        // t∈[0,length] — and fade the silhouette out past the surface. Once the
+        // plane no longer reaches the implant we draw nothing, so moving it
+        // elsewhere on the panoramic correctly removes it from this section.
+        const planeN = cross3(frame.eU, frame.eV);
+        const dw = dot3(axis, planeN); // out-of-plane shift per mm along the axis
+        let minAbsW: number;
+        if (Math.abs(dw) < 1e-6) {
+          minAbsW = Math.abs(w0);
+        } else {
+          const tZero = -w0 / dw;
+          minAbsW = tZero >= 0 && tZero <= imp.length
+            ? 0
+            : Math.min(Math.abs(w0), Math.abs(w0 + dw * imp.length));
+        }
+        const GRAB_MARGIN = 4; // mm of fade past the body surface (stays grabbable)
+        const ghostOpacity = Math.max(0, Math.min(1, 1 - Math.max(0, minAbsW - imp.diameter / 2) / GRAB_MARGIN));
+        if (ghostOpacity <= 0.02) return null; // plane doesn't reach this implant
 
         // Actual plane∩body intersection highlight
         const strip = implantPlaneStrip(
@@ -299,6 +366,31 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
 
         const apexPx = mmToPixel(u0 + au * imp.length, zMid + v0 + av * imp.length);
 
+        // ── Guided surgery: drill sleeve strip + osteotomy axis ──
+        let sleeveStripPts: string | undefined;
+        let drillLine: { x1: number; y1: number; x2: number; y2: number } | undefined;
+        if (imp.guided?.enabled) {
+          const body = { entry: imp.position, axis, diameter: imp.diameter, length: imp.length };
+          const sleeve = {
+            diameter: getImplantSystem(imp.systemId).sleeveDiameter,
+            offset: imp.guided.sleeveOffset,
+            height: imp.guided.sleeveHeight,
+          };
+          const sStrip = cylinderPlaneStrip(sleeveBody(body, sleeve), frame, () => 1);
+          sleeveStripPts = sStrip
+            ?.map(([u, v]) => mmToPixel(u, zMid + v))
+            .filter((p): p is [number, number] => p !== null)
+            .map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`)
+            .join(' ');
+
+          const [ds, de] = drillSegment(body, sleeve, imp.guided.drillLength);
+          const dsP = projectToPlane(ds, frame);
+          const deP = projectToPlane(de, frame);
+          const a = mmToPixel(dsP[0], zMid + dsP[1]);
+          const b = mmToPixel(deP[0], zMid + deP[1]);
+          if (a && b) drillLine = { x1: a[0], y1: a[1], x2: b[0], y2: b[1] };
+        }
+
         return (
           <g key={imp.id}>
             {/* Ghost: full silhouette, grabbable anywhere */}
@@ -311,7 +403,15 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
               active={isActive}
               opacity={ghostOpacity}
               interactive={!measuring}
+              safetyXPx={scaleH * state.safety.marginMm}
+              safetyYPx={scaleV * state.safety.marginMm}
+              safetyColor={state.safety.color}
+              warn={warn}
               onPointerDown={(e) => handleImplantPointerDown(e, imp)}
+              onDoubleClick={() => {
+                dispatch({ type: 'SET_ACTIVE_IMPLANT', payload: imp.id });
+                dispatch({ type: 'SET_EDITING_IMPLANT', payload: imp.id });
+              }}
             />
             {/* What the current plane actually cuts */}
             {stripPoints && (
@@ -319,6 +419,27 @@ export function ImplantOverlay({ containerRef, canvasRef, widthMm, zMin, zMax }:
                 points={stripPoints}
                 fill={isActive ? 'rgba(255, 200, 0, 0.30)' : 'rgba(0, 180, 255, 0.28)'}
                 stroke={color}
+                strokeWidth={1.5}
+                style={{ pointerEvents: 'none' }}
+              />
+            )}
+            {/* Guided: osteotomy axis from sleeve to drill depth */}
+            {drillLine && (
+              <line
+                x1={drillLine.x1} y1={drillLine.y1}
+                x2={drillLine.x2} y2={drillLine.y2}
+                stroke="rgba(120, 230, 140, 0.85)"
+                strokeWidth={1}
+                strokeDasharray="4 3"
+                style={{ pointerEvents: 'none' }}
+              />
+            )}
+            {/* Guided: drill sleeve (persely) */}
+            {sleeveStripPts && (
+              <polygon
+                points={sleeveStripPts}
+                fill="rgba(120, 230, 140, 0.18)"
+                stroke="rgb(120, 230, 140)"
                 strokeWidth={1.5}
                 style={{ pointerEvents: 'none' }}
               />

@@ -2,7 +2,7 @@ import { useViewer } from '@/context/ViewerContext';
 import { useI18n } from '@/i18n/I18nContext';
 import { setActiveTool } from '@/core/toolManager';
 import { TOOL_ICONS } from './toolIcons';
-import type { ViewportTool, ProjectionMode } from '@/types/dicom';
+import type { ViewportTool } from '@/types/dicom';
 
 const navTools: { id: ViewportTool; labelKey: string; shortcut: string }[] = [
   { id: 'windowLevel', labelKey: 'tool.windowLevel', shortcut: 'W' },
@@ -82,7 +82,6 @@ export function Toolbar() {
   };
 
   const isMPRMultiView = state.layoutMode === '2x2' || state.layoutMode === '1+3';
-  const isOPG = state.layoutMode === 'OPG' || state.layoutMode === 'OPG2+1';
 
   return (
     <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 border-b border-gray-300 dark:bg-gray-800 dark:border-gray-700 flex-wrap">
@@ -127,94 +126,54 @@ export function Toolbar() {
         ))}
       </div>
 
-      {/* Panoramic OPG controls — visible in OPG layouts */}
-      {state.study && isOPG && (
+      {/* Implant placement — only on the cross-section layout.
+          Slab width / AVG-MIP / resolution now live in the Settings panel. */}
+      {state.study && state.layoutMode === 'OPG2+1' && (
         <>
           <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-600 dark:text-gray-400 select-none">{t('opg.width')}</label>
-            <input
-              type="range"
-              min={5}
-              max={50}
-              step={1}
-              value={state.panoramicSlabWidth}
-              onChange={(e) => dispatch({ type: 'SET_PANORAMIC_SLAB', payload: Number(e.target.value) })}
-              className="w-20 h-1 accent-dental-400"
-            />
-            <span className="text-xs text-gray-700 dark:text-gray-300 font-mono w-10">{state.panoramicSlabWidth} mm</span>
-          </div>
-          <div className="flex gap-1">
-            {(['AVG', 'MIP'] as ProjectionMode[]).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => dispatch({ type: 'SET_PANORAMIC_PROJECTION', payload: mode })}
-                className={`
-                  px-2 py-1 text-xs rounded transition-colors
-                  ${state.panoramicProjection === mode ? BTN_ACTIVE : BTN_BASE}
-                `}
-              >
-                {mode}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-1">
-            <select
-              value={state.panoramicResolution}
-              onChange={(e) => dispatch({ type: 'SET_PANORAMIC_RESOLUTION', payload: Number(e.target.value) })}
-              className="bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 text-xs rounded px-1 py-1 border border-gray-300 dark:border-gray-600"
-            >
-              <option value={0.15}>150 µm</option>
-              <option value={0.3}>300 µm</option>
-              <option value={0.45}>450 µm</option>
-              <option value={0.75}>750 µm</option>
-              <option value={1.0}>1.0 mm</option>
-              <option value={2.0}>2.0 mm</option>
-              <option value={3.0}>3.0 mm</option>
-              <option value={5.0}>5.0 mm</option>
-            </select>
-          </div>
-          {state.layoutMode === 'OPG2+1' && (
-            <button
-              onClick={() => dispatch({ type: 'SET_IMPLANT_PLACEMENT_MODE', payload: !state.implantPlacementMode })}
-              className={`
-                px-2 py-1 text-xs rounded transition-colors
-                ${state.implantPlacementMode ? BTN_ACTIVE : BTN_BASE}
-              `}
-              title={t('opg.addImplantTitle')}
-            >
-              {t('opg.addImplant')}
-            </button>
-          )}
+          <button
+            onClick={() => dispatch({ type: 'SET_IMPLANT_PLACEMENT_MODE', payload: !state.implantPlacementMode })}
+            className={`
+              px-2 py-1 text-xs rounded transition-colors
+              ${state.implantPlacementMode ? BTN_ACTIVE : BTN_BASE}
+            `}
+            title={t('opg.addImplantTitle')}
+          >
+            {t('opg.addImplant')}
+          </button>
+          <button
+            onClick={() => {
+              const on = state.anatomyDrawMode === 'nerve';
+              dispatch({ type: 'SET_ANATOMY_DRAW_MODE', payload: on ? null : 'nerve' });
+              if (!on) dispatch({ type: 'SET_ACTIVE_ANATOMY', payload: null });
+            }}
+            className={`
+              px-2 py-1 text-xs rounded transition-colors
+              ${state.anatomyDrawMode === 'nerve' ? BTN_ACTIVE : BTN_BASE}
+            `}
+            title={t('anatomy.nerveTitle')}
+          >
+            {t('anatomy.nerve')}
+          </button>
+          <button
+            onClick={() => {
+              const on = state.anatomyDrawMode === 'sinus';
+              dispatch({ type: 'SET_ANATOMY_DRAW_MODE', payload: on ? null : 'sinus' });
+              if (!on) dispatch({ type: 'SET_ACTIVE_ANATOMY', payload: null });
+            }}
+            className={`
+              px-2 py-1 text-xs rounded transition-colors
+              ${state.anatomyDrawMode === 'sinus' ? BTN_ACTIVE : BTN_BASE}
+            `}
+            title={t('anatomy.sinusTitle')}
+          >
+            {t('anatomy.sinus')}
+          </button>
         </>
       )}
 
       {/* Spacer */}
       <div className="flex-1" />
-
-      {/* Layers panel toggle */}
-      {state.study && (
-        <button
-          onClick={() => dispatch({ type: 'TOGGLE_PANEL', payload: 'layers' })}
-          className={`
-            px-3 py-1.5 text-sm rounded transition-colors
-            ${state.activePanel === 'layers' ? BTN_ACTIVE : BTN_BASE}
-          `}
-          title={t('toolbar.layers')}
-        >
-          {t('toolbar.layers')}
-        </button>
-      )}
-
-      {/* Reset */}
-      {state.study && (
-        <button
-          onClick={() => dispatch({ type: 'RESET' })}
-          className={`px-3 py-1.5 text-sm rounded transition-colors ${BTN_BASE} hover:!bg-red-700 hover:!text-white`}
-        >
-          {t('toolbar.reload')}
-        </button>
-      )}
     </div>
   );
 }

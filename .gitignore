@@ -7,3 +7,6 @@ public/sample-data/
 
 # Local DICOM test data (patient data - never commit)
 dicom_test/
+
+# Local reference material / saved third-party pages
+docs/

@@ -1,7 +1,8 @@
 import { createContext, useContext, useReducer, type ReactNode, type Dispatch } from 'react';
 import type { DicomStudyInfo, ViewportTool, LayoutMode, ViewMode, ProjectionMode, ImplantData, MeasurementLayer, AnatomyMarker, AnatomyType } from '@/types/dicom';
+import type { PlanData } from '@/core/planIO';
 
-interface ViewerState {
+export interface ViewerState {
   isInitialized: boolean;
   isLoading: boolean;
   loadProgress: { loaded: number; total: number } | null;
@@ -88,6 +89,7 @@ type ViewerAction =
   | { type: 'REMOVE_ANATOMY'; payload: string }
   | { type: 'SET_ANATOMY_DRAW_MODE'; payload: AnatomyType | null }
   | { type: 'SET_ACTIVE_ANATOMY'; payload: string | null }
+  | { type: 'LOAD_PLAN'; payload: PlanData }
   | { type: 'ADD_MEASUREMENT'; payload: MeasurementLayer }
   | { type: 'UPDATE_MEASUREMENT'; payload: MeasurementLayer }
   | { type: 'REMOVE_MEASUREMENT'; payload: string }
@@ -212,6 +214,17 @@ function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
       return { ...state, anatomyDrawMode: action.payload };
     case 'SET_ACTIVE_ANATOMY':
       return { ...state, activeAnatomyId: action.payload };
+    case 'LOAD_PLAN':
+      // Replace the persistable slices in one shot; clear transient selection
+      return {
+        ...state,
+        ...action.payload,
+        activeImplantId: null,
+        editingImplantId: null,
+        activeAnatomyId: null,
+        anatomyDrawMode: null,
+        implantPlacementMode: false,
+      };
     case 'SET_REPORT':
       return { ...state, report: { ...state.report, ...action.payload } };
     case 'ADD_MEASUREMENT':

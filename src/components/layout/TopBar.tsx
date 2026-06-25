@@ -11,6 +11,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { LANGUAGES } from '@/i18n/translations';
 import { useLayoutSwitch } from '@/hooks/useLayoutSwitch';
 import { exportViewPdf } from '@/core/pdfExport';
+import { serializePlan, planFromObject } from '@/core/planIO';
 import { VIEW_LABEL_KEYS, type LayoutMode, type ViewMode } from '@/types/dicom';
 
 const LAYOUTS: { id: LayoutMode; labelKey?: string; label?: string }[] = [
@@ -129,6 +130,41 @@ export function TopBar() {
   const langRef = useRef<HTMLDivElement>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
+  const planInputRef = useRef<HTMLInputElement>(null);
+
+  const savePlan = () => {
+    const plan = serializePlan(state, {
+      savedAt: new Date().toISOString(),
+      studyInstanceUID: state.study?.studyInstanceUID ?? null,
+      patientId: state.study?.patientId ?? null,
+    });
+    const blob = new Blob([JSON.stringify(plan, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = `dental_plan_${new Date().toISOString().slice(0, 10)}.json`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+    setExportOpen(false);
+  };
+
+  const loadPlanFile = async (file: File) => {
+    try {
+      const obj = JSON.parse(await file.text());
+      const data = planFromObject(obj);
+      if (!data) {
+        window.alert(t('plan.invalid'));
+        return;
+      }
+      const uid = obj.studyInstanceUID;
+      if (uid && state.study && uid !== state.study.studyInstanceUID && !window.confirm(t('plan.mismatch'))) {
+        return;
+      }
+      dispatch({ type: 'LOAD_PLAN', payload: data });
+    } catch {
+      window.alert(t('plan.invalid'));
+    }
+  };
 
   // Close the export dropdown on outside click
   useEffect(() => {
@@ -273,8 +309,32 @@ export function TopBar() {
                 >
                   {t('export.savePdf')}
                 </button>
+                <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+                <button
+                  onClick={savePlan}
+                  className="w-full px-3 py-1.5 text-xs text-left text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
+                >
+                  {t('plan.save')}
+                </button>
+                <button
+                  onClick={() => { setExportOpen(false); planInputRef.current?.click(); }}
+                  className="w-full px-3 py-1.5 text-xs text-left text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
+                >
+                  {t('plan.load')}
+                </button>
               </div>
             )}
+            <input
+              ref={planInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void loadPlanFile(f);
+                e.target.value = '';
+              }}
+            />
           </div>
         )}
 

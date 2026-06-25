@@ -9,6 +9,7 @@ import { useViewer } from '@/context/ViewerContext';
 import { useI18n } from '@/i18n/I18nContext';
 import { setupTools } from '@/core/toolManager';
 import { createVolume } from '@/core/volumeBuilder';
+import { serializePlan, planFromObject } from '@/core/planIO';
 import { CS_TOOL_KEYS } from '@/core/annotationLayer';
 import { RENDERING_ENGINE_ID } from '@/core/constants';
 
@@ -93,6 +94,44 @@ export function ViewerShell() {
         console.error('[DQ-DICOM] Volume creation failed:', err);
       });
   }, [needsVolume, state.activeSeriesUID, state.study, state.volumeId, dispatch]);
+
+  // ── Plan autosave / restore (per study, localStorage) ───────
+  const studyUID = state.study?.studyInstanceUID ?? null;
+  const restoredRef = useRef<string | null>(null);
+
+  // Restore the last autosaved plan once per study, only into a fresh plan
+  useEffect(() => {
+    if (!studyUID || restoredRef.current === studyUID) return;
+    restoredRef.current = studyUID;
+    if (state.implants.length || state.anatomy.length || state.measurements.length) return;
+    try {
+      const raw = localStorage.getItem(`rdcv-plan-${studyUID}`);
+      if (!raw) return;
+      const data = planFromObject(JSON.parse(raw));
+      if (data) dispatch({ type: 'LOAD_PLAN', payload: data });
+    } catch { /* ignore corrupt autosave */ }
+  }, [studyUID, state.implants.length, state.anatomy.length, state.measurements.length, dispatch]);
+
+  // Debounced autosave of the current plan
+  useEffect(() => {
+    if (!studyUID) return;
+    const id = setTimeout(() => {
+      try {
+        const plan = serializePlan(state, {
+          savedAt: new Date().toISOString(),
+          studyInstanceUID: studyUID,
+          patientId: state.study?.patientId ?? null,
+        });
+        localStorage.setItem(`rdcv-plan-${studyUID}`, JSON.stringify(plan));
+      } catch { /* storage full / unavailable */ }
+    }, 800);
+    return () => clearTimeout(id);
+  }, [
+    studyUID, state.implants, state.anatomy, state.measurements, state.archCurveControlPoints,
+    state.crossSectionPosition, state.crossSectionTiltDeg, state.panoramicSlabWidth,
+    state.panoramicProjection, state.panoramicResolution, state.safety, state.windowLevel,
+    state.report, state.study,
+  ]);
 
   return (
     <div className="flex flex-col h-full w-full bg-gray-100 dark:bg-gray-900">

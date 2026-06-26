@@ -31,7 +31,7 @@ export interface CPRParams {
 
 // ── Helpers ────────────────────────────────────────────────────
 
-function getVolumeData(volumeId: string): VolumeSamplingData | null {
+export function getVolumeData(volumeId: string): VolumeSamplingData | null {
   const volume = cache.getVolume(volumeId) as Types.IImageVolume | undefined;
   if (!volume?.voxelManager) return null;
 

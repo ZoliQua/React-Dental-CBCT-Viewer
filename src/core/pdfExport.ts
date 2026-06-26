@@ -79,6 +79,8 @@ interface PdfExportOptions {
   anatomy?: AnatomyMarker[];
   archCurve?: [number, number][] | null;
   thresholds?: { nerve: number; sinus: number; neighbor: number };
+  /** implant id → bone quality label (e.g. "D2 · 712 HU") */
+  boneQuality?: Record<string, string>;
   lang: string;
 }
 
@@ -86,7 +88,7 @@ const PAGE_W = 210;
 const PAGE_H = 297;
 const MARGIN = 14;
 
-export async function exportViewPdf({ t, study, implants, measurements, report, anatomy, archCurve, thresholds, lang }: PdfExportOptions): Promise<void> {
+export async function exportViewPdf({ t, study, implants, measurements, report, anatomy, archCurve, thresholds, boneQuality, lang }: PdfExportOptions): Promise<void> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   let y = MARGIN;
 
@@ -179,6 +181,14 @@ export async function exportViewPdf({ t, study, implants, measurements, report, 
         MARGIN + 2, y,
       );
       y += 4.5;
+      const bq = boneQuality?.[imp.id];
+      if (bq) {
+        pageBreak(5);
+        doc.setTextColor(110);
+        doc.text(`   ${t('bone.title')}: ${bq}`, MARGIN + 2, y);
+        doc.setTextColor(0);
+        y += 4.5;
+      }
       if (imp.guided?.enabled) {
         pageBreak(5);
         doc.setTextColor(110);

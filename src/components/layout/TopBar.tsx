@@ -12,6 +12,9 @@ import { LANGUAGES } from '@/i18n/translations';
 import { useLayoutSwitch } from '@/hooks/useLayoutSwitch';
 import { exportViewPdf } from '@/core/pdfExport';
 import { serializePlan, planFromObject } from '@/core/planIO';
+import { implantWorldAxis } from '@/core/implantGeometry';
+import { getVolumeData } from '@/core/cprEngine';
+import { sampleImplantBoneHU } from '@/core/boneQuality';
 import { VIEW_LABEL_KEYS, type LayoutMode, type ViewMode } from '@/types/dicom';
 
 const LAYOUTS: { id: LayoutMode; labelKey?: string; label?: string }[] = [
@@ -293,6 +296,18 @@ export function TopBar() {
                 <button
                   onClick={() => {
                     setExportOpen(false);
+                    // Bone quality per implant (sampled from the volume)
+                    const boneQuality: Record<string, string> = {};
+                    const cps = state.archCurveControlPoints;
+                    const vol = state.volumeId ? getVolumeData(state.volumeId) : null;
+                    if (cps && vol) {
+                      for (const imp of state.implants) {
+                        const wa = implantWorldAxis(cps, imp);
+                        if (!wa) continue;
+                        const b = sampleImplantBoneHU(vol, wa.entry, wa.apex, imp.diameter / 2);
+                        if (b) boneQuality[imp.id] = `${b.bone} · ${Math.round(b.meanHU)} HU`;
+                      }
+                    }
                     void exportViewPdf({
                       t,
                       study: state.study,
@@ -302,6 +317,7 @@ export function TopBar() {
                       anatomy: state.anatomy,
                       archCurve: state.archCurveControlPoints,
                       thresholds: { nerve: state.safety.nerveMm, sinus: state.safety.sinusMm, neighbor: state.safety.neighborMm },
+                      boneQuality,
                       lang,
                     });
                   }}

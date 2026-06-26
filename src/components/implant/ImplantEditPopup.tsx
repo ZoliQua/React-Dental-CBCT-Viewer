@@ -14,6 +14,16 @@ import {
 } from '@/types/dicom';
 import { implantWorldAxis } from '@/core/implantGeometry';
 import { evaluateImplant, type ImplantSeg } from '@/core/safety';
+import { getVolumeData } from '@/core/cprEngine';
+import { sampleImplantBoneHU, type BoneClass } from '@/core/boneQuality';
+
+const BONE_COLOR: Record<BoneClass, string> = {
+  D1: 'text-green-600 dark:text-green-400',
+  D2: 'text-green-600 dark:text-green-400',
+  D3: 'text-amber-600 dark:text-amber-400',
+  D4: 'text-red-600 dark:text-red-400',
+  D5: 'text-red-600 dark:text-red-400 font-bold',
+};
 
 /** Closest value in `options` to `value` (keeps sizes valid across systems). */
 function nearest(value: number, options: number[]): number {
@@ -53,6 +63,10 @@ export function ImplantEditPopup({ implantId, onClose }: ImplantEditPopupProps) 
     ? evaluateImplant(selfSeg, segs, visAnatomy,
         { nerve: state.safety.nerveMm, sinus: state.safety.sinusMm, neighbor: state.safety.neighborMm })
     : null;
+
+  // Bone quality (Misch D1–D5) from the mean HU along the implant body
+  const vol = state.volumeId ? getVolumeData(state.volumeId) : null;
+  const bone = vol && selfSeg ? sampleImplantBoneHU(vol, selfSeg.entry, selfSeg.apex, selfSeg.radius) : null;
 
   const changeSystem = (id: string) => {
     const sys = getImplantSystem(id);
@@ -254,6 +268,18 @@ export function ImplantEditPopup({ implantId, onClose }: ImplantEditPopupProps) 
                 </span>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Bone quality */}
+        {bone && (
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-gray-700 dark:text-gray-300 font-semibold">{t('bone.title')}</span>
+              <span className={`font-mono ${BONE_COLOR[bone.bone]}`}>
+                {bone.bone} · {Math.round(bone.meanHU)} HU
+              </span>
+            </div>
           </div>
         )}
       </div>
